@@ -237,6 +237,7 @@ const Navbar = () => {
             <NavLink href="/records">Records</NavLink>
             <NavLink href="/shared">Shared Access</NavLink>
             <NavLink href="/roles">Role Management</NavLink>
+            {role === 'ADMIN' && <NavLink href="/admin">Admin Dashboard</NavLink>}
           </HStack>
         </HStack>
         <Flex alignItems="center" gap={4}>
@@ -430,7 +431,7 @@ const Navbar = () => {
                     Connect your wallet
                   </Text>
                   <Box>
-                    <WalletConnect />
+          <WalletConnect />
                   </Box>
                 </VStack>
               )}
@@ -446,6 +447,7 @@ const Navbar = () => {
             <NavLink href="/records">Records</NavLink>
             <NavLink href="/shared">Shared Access</NavLink>
             <NavLink href="/roles">Role Management</NavLink>
+            {role === 'ADMIN' && <NavLink href="/admin">Admin Dashboard</NavLink>}
           </Stack>
         </Box>
       )}

@@ -13,6 +13,7 @@ import SearchFilter from '../components/SearchFilter';
 import { FiUpload, FiFolder, FiShare2, FiUsers, FiLock, FiShield } from 'react-icons/fi';
 import Icon from '../components/Icon';
 import { CONTRACT_ADDRESS } from '../utils/contract';
+import { useRole } from '../contexts/RoleContext';
 
 // Define colors directly in the component for now
 const COLORS = {
@@ -68,6 +69,7 @@ const Dashboard = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
   const toast = useToast();
+  const { role } = useRole();
 
   // Move all color mode values to the top
   const bgColor = useColorModeValue('gray.50', 'gray.900');

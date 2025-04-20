@@ -19,6 +19,7 @@ interface RoleContextType {
     isLoading: boolean;
     checkRole: () => Promise<void>;
     updateProfile: (name: string, specialization: string, institution: string) => Promise<void>;
+    requestRoleChange: (newRole: Role) => Promise<void>;
 }
 
 const RoleContext = createContext<RoleContextType | undefined>(undefined);
@@ -134,12 +135,77 @@ export const RoleProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
     };
 
+    const requestRoleChange = async (newRole: Role) => {
+        if (!account || !library) {
+            toast({
+                title: "Error",
+                description: "Please connect your wallet first",
+                status: "error",
+                duration: 5000,
+                isClosable: true,
+            });
+            return;
+        }
+
+        if (!newRole) {
+            toast({
+                title: "Error",
+                description: "Please select a valid role",
+                status: "error",
+                duration: 5000,
+                isClosable: true,
+            });
+            return;
+        }
+
+        try {
+            const contract = getContract(library.getSigner());
+            
+            // Store the role request in a separate smart contract function
+            // This will emit an event that admins can listen to
+            const tx = await contract.requestRoleChange(ROLES[newRole]);
+            
+            toast({
+                title: "Role Change Requested",
+                description: "Your role change request has been submitted and is pending admin approval",
+                status: "info",
+                duration: 5000,
+                isClosable: true,
+            });
+
+            await tx.wait();
+            
+            toast({
+                title: "Request Submitted",
+                description: `Your request to change role to ${newRole} is now pending admin approval`,
+                status: "success",
+                duration: 5000,
+                isClosable: true,
+            });
+        } catch (error: any) {
+            toast({
+                title: "Error",
+                description: error.message || "Failed to request role change",
+                status: "error",
+                duration: 5000,
+                isClosable: true,
+            });
+        }
+    };
+
     useEffect(() => {
         checkRole();
     }, [account, library]);
 
     return (
-        <RoleContext.Provider value={{ role, userProfile, updateProfile, checkRole, isLoading }}>
+        <RoleContext.Provider value={{ 
+            role, 
+            userProfile, 
+            updateProfile, 
+            checkRole, 
+            isLoading,
+            requestRoleChange 
+        }}>
             {children}
         </RoleContext.Provider>
     );

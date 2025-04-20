@@ -70,6 +70,15 @@ contract MedicalRecord is ERC721, Ownable, ReentrancyGuard, AccessControl {
     mapping(address => mapping(Category => uint256[])) private recordsByCategory;
     mapping(string => uint256[]) private recordsByTag;
     
+    struct RoleChangeRequest {
+        address requester;
+        bytes32 requestedRole;
+        uint256 timestamp;
+        bool isPending;
+    }
+    
+    mapping(address => RoleChangeRequest) public roleChangeRequests;
+    
     event RecordCreated(uint256 recordId, address owner, Category category);
     event AccessGranted(uint256 recordId, address requester);
     event AccessRevoked(uint256 recordId, address requester);
@@ -79,6 +88,8 @@ contract MedicalRecord is ERC721, Ownable, ReentrancyGuard, AccessControl {
     event RoleGranted(address account, bytes32 role);
     event RoleRevoked(address account, bytes32 role);
     event UserProfileUpdated(address user, string name, string specialization, string institution);
+    event RoleChangeRequested(address indexed requester, bytes32 indexed requestedRole);
+    event RoleChangeRequestProcessed(address indexed requester, bytes32 indexed requestedRole, bool approved);
     
     constructor() ERC721("MedicalRecord", "MREC") {
         _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
@@ -420,5 +431,48 @@ contract MedicalRecord is ERC721, Ownable, ReentrancyGuard, AccessControl {
             profile.isVerified,
             profile.verificationTimestamp
         );
+    }
+
+    function requestRoleChange(bytes32 requestedRole) public {
+        require(
+            requestedRole == PATIENT_ROLE ||
+            requestedRole == DOCTOR_ROLE ||
+            requestedRole == RESEARCHER_ROLE ||
+            requestedRole == ADMIN_ROLE,
+            "Invalid role requested"
+        );
+        
+        require(!hasRole(requestedRole, msg.sender), "Already has this role");
+        require(!roleChangeRequests[msg.sender].isPending, "Already has a pending request");
+        
+        roleChangeRequests[msg.sender] = RoleChangeRequest({
+            requester: msg.sender,
+            requestedRole: requestedRole,
+            timestamp: block.timestamp,
+            isPending: true
+        });
+        
+        emit RoleChangeRequested(msg.sender, requestedRole);
+    }
+
+    function processRoleChangeRequest(address requester, bool approved) public onlyAdmin {
+        RoleChangeRequest storage request = roleChangeRequests[requester];
+        require(request.isPending, "No pending request");
+        
+        if (approved) {
+            _grantRole(request.requestedRole, requester);
+        }
+        
+        request.isPending = false;
+        emit RoleChangeRequestProcessed(requester, request.requestedRole, approved);
+    }
+
+    function getPendingRoleRequest(address user) public view returns (
+        bytes32 requestedRole,
+        uint256 timestamp,
+        bool isPending
+    ) {
+        RoleChangeRequest storage request = roleChangeRequests[user];
+        return (request.requestedRole, request.timestamp, request.isPending);
     }
 }

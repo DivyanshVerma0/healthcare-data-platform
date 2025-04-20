@@ -10,6 +10,7 @@ import {
   ModalContent,
   ModalHeader,
   ModalBody,
+  ModalFooter,
   ModalCloseButton,
   useDisclosure,
   FormControl,
@@ -24,7 +25,7 @@ import {
 import { FiUser, FiShield, FiUsers, FiHome } from 'react-icons/fi';
 import { IconType } from 'react-icons';
 import Icon from './Icon';
-import { useRole } from '../contexts/RoleContext';
+import { useRole, Role } from '../contexts/RoleContext';
 import { useWeb3React } from '@web3-react/core';
 
 interface RoleCardProps {
@@ -82,12 +83,21 @@ const RoleCard = ({
 };
 
 const RoleManagement = () => {
-  const { role, userProfile, updateProfile, isLoading } = useRole();
+  const { role, userProfile, updateProfile, requestRoleChange, isLoading } = useRole();
   const { active, account } = useWeb3React();
-  const { isOpen, onOpen, onClose } = useDisclosure();
+  const { 
+    isOpen: isProfileOpen, 
+    onOpen: onProfileOpen, 
+    onClose: onProfileClose 
+  } = useDisclosure();
+  const {
+    isOpen: isRoleChangeOpen,
+    onOpen: onRoleChangeOpen,
+    onClose: onRoleChangeClose
+  } = useDisclosure();
   const bgColor = useColorModeValue('gray.50', 'gray.900');
   
-  // Add form state
+  const [selectedRole, setSelectedRole] = useState<Role>(null);
   const [formData, setFormData] = useState({
     name: userProfile?.name || '',
     specialization: userProfile?.specialization || '',
@@ -105,7 +115,19 @@ const RoleManagement = () => {
   const handleProfileSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     await updateProfile(formData.name, formData.specialization, formData.institution);
-    onClose();
+    onProfileClose();
+  };
+
+  const handleRoleSelect = (selectedRole: Role) => {
+    setSelectedRole(selectedRole);
+    onRoleChangeOpen();
+  };
+
+  const handleRoleChangeConfirm = async () => {
+    if (selectedRole) {
+      await requestRoleChange(selectedRole);
+      onRoleChangeClose();
+    }
   };
 
   const roles = [
@@ -134,10 +156,6 @@ const RoleManagement = () => {
       icon: FiHome,
     },
   ];
-
-  const handleRoleSelect = (selectedRole: string) => {
-    onOpen();
-  };
 
   if (!active) {
     return (
@@ -170,7 +188,7 @@ const RoleManagement = () => {
               Role Management
             </Text>
             <Text color="gray.600">
-              Manage your role and access permissions within the healthcare platform
+              Select a role to request access. Role changes require admin approval.
             </Text>
           </Box>
 
@@ -182,7 +200,7 @@ const RoleManagement = () => {
                 description={roleData.description}
                 icon={roleData.icon}
                 isActive={role === roleData.id}
-                onClick={() => handleRoleSelect(roleData.id)}
+                onClick={() => handleRoleSelect(roleData.id as Role)}
               />
             ))}
           </SimpleGrid>
@@ -191,7 +209,7 @@ const RoleManagement = () => {
             <Box mt={8}>
               <Button
                 colorScheme="blue"
-                onClick={onOpen}
+                onClick={onProfileOpen}
                 isLoading={isLoading}
               >
                 Update Profile
@@ -199,7 +217,8 @@ const RoleManagement = () => {
             </Box>
           )}
 
-          <Modal isOpen={isOpen} onClose={onClose}>
+          {/* Profile Update Modal */}
+          <Modal isOpen={isProfileOpen} onClose={onProfileClose}>
             <ModalOverlay />
             <ModalContent>
               <ModalHeader>Update Profile</ModalHeader>
@@ -244,6 +263,30 @@ const RoleManagement = () => {
                   </VStack>
                 </form>
               </ModalBody>
+            </ModalContent>
+          </Modal>
+
+          {/* Role Change Confirmation Modal */}
+          <Modal isOpen={isRoleChangeOpen} onClose={onRoleChangeClose}>
+            <ModalOverlay />
+            <ModalContent>
+              <ModalHeader>Request Role Change</ModalHeader>
+              <ModalCloseButton />
+              <ModalBody>
+                <Alert status="info" mb={4}>
+                  <AlertIcon />
+                  Role changes require admin approval. You will be notified once your request is processed.
+                </Alert>
+                <Text>
+                  Are you sure you want to request to change your role to <strong>{selectedRole}</strong>?
+                </Text>
+              </ModalBody>
+              <ModalFooter>
+                <Button colorScheme="blue" mr={3} onClick={handleRoleChangeConfirm}>
+                  Request Change
+                </Button>
+                <Button variant="ghost" onClick={onRoleChangeClose}>Cancel</Button>
+              </ModalFooter>
             </ModalContent>
           </Modal>
         </VStack>
