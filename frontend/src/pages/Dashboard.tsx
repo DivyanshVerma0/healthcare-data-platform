@@ -1,4 +1,4 @@
-import { Box, Heading, Text, SimpleGrid, Card, CardBody, Button, Input, VStack, useToast, Progress, Select, Divider, Tabs, TabList, TabPanels, Tab, TabPanel, HStack, Tag, TagLabel, TagCloseButton } from '@chakra-ui/react';
+import { Box, Heading, Text, SimpleGrid, Card, CardBody, Button, Input, VStack, useToast, Progress, Select, Divider, Tabs, TabList, TabPanels, Tab, TabPanel, HStack, Container, useColorModeValue, Badge, Flex, chakra, Stat, StatLabel, StatNumber, StatHelpText } from '@chakra-ui/react';
 import { useWeb3React } from '@web3-react/core';
 import { useState, useEffect } from 'react';
 import { uploadToIPFS } from '../utils/ipfs';
@@ -10,6 +10,8 @@ import SharedAccessList from '../components/SharedAccessList';
 import SharedWithMeRecords from '../components/SharedWithMeRecords';
 import EmergencyAccess from '../components/EmergencyAccess';
 import SearchFilter from '../components/SearchFilter';
+import { FiUpload, FiFolder, FiShare2, FiUsers, FiLock, FiShield } from 'react-icons/fi';
+import { Icon } from '../components/Icon';
 
 const CONTRACT_ADDRESS = '0x5FbDB2315678afecb367f032d93F642f64180aa3';
 
@@ -35,6 +37,25 @@ const ALLOWED_FILE_TYPES = {
   'image/png': ['.png']
 };
 
+// Add professional color scheme constants
+const COLORS = {
+  primary: {
+    50: '#E6F6FF',
+    500: '#0078D4',
+    600: '#0063B1',
+  },
+  secondary: {
+    50: '#F0F9FF',
+    500: '#00B5E2',
+    600: '#00A3CB',
+  },
+  accent: {
+    50: '#F5F7FF',
+    500: '#4C6FFF',
+    600: '#3557FF',
+  }
+};
+
 const Dashboard = () => {
   const { active, account, library } = useWeb3React();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -51,6 +72,18 @@ const Dashboard = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
   const toast = useToast();
+
+  // Move all color mode values to the top
+  const bgColor = useColorModeValue('gray.50', 'gray.900');
+  const containerBg = useColorModeValue('white', 'gray.800');
+  const borderColor = useColorModeValue('gray.100', 'gray.700');
+  const textColor = useColorModeValue('gray.800', 'white');
+  const subTextColor = useColorModeValue('gray.600', 'gray.400');
+  const inputBg = useColorModeValue('white', 'gray.700');
+  const inputBorderColor = useColorModeValue('gray.200', 'gray.600');
+  const hoverBg = useColorModeValue('gray.100', 'gray.700');
+  const cardBg = useColorModeValue('gray.50', 'gray.700');
+  const iconColor = useColorModeValue('gray.400', 'gray.500');
 
   const validateFile = (file: File): { isValid: boolean; error?: string } => {
     // Check file size
@@ -432,203 +465,424 @@ const Dashboard = () => {
   }, [active, account]);
 
   return (
-    <Box p={8}>
-      <Heading mb={6}>Your Medical Records Dashboard</Heading>
-      {active ? (
-        <>
-          <HStack spacing={4} mb={4}>
-            <Box flex="1">
-              <SearchFilter onSearch={handleSearch} />
+    <Box bg={bgColor} minH="100vh" py={8}>
+      <Container maxW="container.xl">
+        <VStack spacing={8} align="stretch">
+          <Flex 
+            direction={{ base: 'column', md: 'row' }}
+            justify="space-between" 
+            align={{ base: 'flex-start', md: 'center' }}
+            bg={containerBg}
+            p={6}
+            borderRadius="xl"
+            boxShadow="sm"
+            mb={6}
+          >
+            <Box>
+              <Heading 
+                fontSize={{ base: '2xl', md: '3xl' }}
+                color={textColor}
+                mb={2}
+              >
+                Medical Records Dashboard
+              </Heading>
+              <Text color={subTextColor}>
+                Securely manage and share your medical records
+              </Text>
             </Box>
-            <Select
-              placeholder="Filter by category"
-              value={selectedCategory}
-              onChange={(e) => handleCategoryFilter(e.target.value)}
-              maxW="200px"
-            >
-              <option value="">All Categories</option>
-              {CATEGORY_NAMES.map((name: string, index: number) => (
-                <option key={index} value={index.toString()}>
-                  {name}
-                </option>
-              ))}
-            </Select>
-          </HStack>
-          <Tabs>
-            <TabList mb={4}>
-              <Tab>My Records</Tab>
-              <Tab>Shared By Me</Tab>
-              <Tab>Shared With Me</Tab>
-            </TabList>
-            <TabPanels>
-              <TabPanel>
-                <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={6}>
-                  <Card>
-                    <CardBody>
-                      <VStack spacing={4}>
-                        <Heading size="md">Upload Records</Heading>
-                        <Text>Upload your medical records securely</Text>
-                        <Input
-                          placeholder="Enter record name"
-                          value={recordName}
-                          onChange={(e) => setRecordName(e.target.value)}
-                        />
-                        <Input
-                          type="file"
-                          onChange={handleFileSelect}
-                          accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
-                          disabled={isUploading}
-                        />
-                        <Select
-                          placeholder="Select Category"
-                          value={category}
-                          onChange={(e) => setCategory(e.target.value)}
-                        >
-                          <option value="0">General</option>
-                          <option value="1">Lab Report</option>
-                          <option value="2">Prescription</option>
-                          <option value="3">Imaging</option>
-                          <option value="4">Vaccination</option>
-                          <option value="5">Surgery</option>
-                          <option value="6">Consultation</option>
-                          <option value="7">Emergency</option>
-                          <option value="8">Other</option>
-                        </Select>
-                        {isUploading && (
-                          <Box w="100%">
-                            <Progress size="xs" isIndeterminate />
-                            <Text mt={2} fontSize="sm">{uploadProgress}</Text>
-                          </Box>
-                        )}
-                        <Button 
-                          colorScheme="blue" 
-                          onClick={handleUpload}
-                          isDisabled={!selectedFile || isUploading}
-                          isLoading={isUploading}
-                          loadingText={uploadProgress}
-                        >
-                          Upload File
-                        </Button>
-                      </VStack>
-                    </CardBody>
-                  </Card>
-                  <Card>
-                    <CardBody>
-                      <Heading size="md" mb={4}>View Records</Heading>
-                      <RecordsList 
-                        records={filteredRecords.length > 0 ? filteredRecords : records}
-                        onRefresh={fetchRecords}
-                      />
-                    </CardBody>
-                  </Card>
-                  <Card>
-                    <CardBody>
-                      <VStack spacing={4} align="stretch">
-                        <Heading size="md">Share Records</Heading>
-                        <Text>Share your records with healthcare providers</Text>
-                        <Input 
-                          placeholder="Enter wallet address to share with"
-                          value={shareAddress}
-                          onChange={(e) => setShareAddress(e.target.value)}
-                        />
-                        <Select 
-                          placeholder="Select record to share"
-                          value={selectedRecordId}
-                          onChange={(e) => setSelectedRecordId(e.target.value)}
-                        >
-                          {records.map((record) => (
-                            <option key={record.recordId} value={record.recordId}>
-                              {record.tags && record.tags.length > 0 ? record.tags[0] : `Record ${record.recordId}`} ({new Date(record.timestamp).toLocaleDateString()})
-                            </option>
-                          ))}
-                        </Select>
-                        <Button
-                          colorScheme="blue"
-                          onClick={handleShare}
-                          isLoading={isSharing}
-                        >
-                          Share Access
-                        </Button>
-                        
-                        {selectedRecordId && (
-                          <>
-                            <Divider my={2} />
-                            <Text fontWeight="bold">Current Access:</Text>
-                            <SharedAccessList
-                              recordId={selectedRecordId}
-                              contract={new ethers.Contract(CONTRACT_ADDRESS, MedicalRecord.abi, library.getSigner())}
-                              onAccessRevoked={fetchRecords}
-                              isOwner={account?.toLowerCase() === records.find(r => r.recordId === selectedRecordId)?.owner?.toLowerCase()}
+            {!active && (
+              <Badge 
+                colorScheme="red" 
+                p={3} 
+                borderRadius="lg"
+                display="flex"
+                alignItems="center"
+                mt={{ base: 4, md: 0 }}
+              >
+                <Icon icon={FiLock} mr={2} />
+                Wallet Not Connected
+              </Badge>
+            )}
+          </Flex>
+
+          {active ? (
+            <>
+              <SimpleGrid columns={{ base: 1, md: 3 }} spacing={6} mb={6}>
+                <Stat
+                  px={6}
+                  py={4}
+                  bg={containerBg}
+                  borderRadius="lg"
+                  boxShadow="sm"
+                  border="1px"
+                  borderColor={borderColor}
+                >
+                  <StatLabel color={subTextColor}>Total Records</StatLabel>
+                  <StatNumber fontSize="3xl" fontWeight="bold" color={COLORS.primary[500]}>
+                    {records.length}
+                  </StatNumber>
+                  <StatHelpText>Your medical documents</StatHelpText>
+                </Stat>
+                <Stat
+                  px={6}
+                  py={4}
+                  bg={containerBg}
+                  borderRadius="lg"
+                  boxShadow="sm"
+                  border="1px"
+                  borderColor={borderColor}
+                >
+                  <StatLabel color={subTextColor}>Shared Records</StatLabel>
+                  <StatNumber fontSize="3xl" fontWeight="bold" color={COLORS.secondary[500]}>
+                    {records.filter(r => r.isActive).length}
+                  </StatNumber>
+                  <StatHelpText>Records you've shared</StatHelpText>
+                </Stat>
+                <Stat
+                  px={6}
+                  py={4}
+                  bg={containerBg}
+                  borderRadius="lg"
+                  boxShadow="sm"
+                  border="1px"
+                  borderColor={borderColor}
+                >
+                  <StatLabel color={subTextColor}>Shared With Me</StatLabel>
+                  <StatNumber fontSize="3xl" fontWeight="bold" color={COLORS.accent[500]}>
+                    {sharedWithMeRecords.length}
+                  </StatNumber>
+                  <StatHelpText>Records shared with you</StatHelpText>
+                </Stat>
+              </SimpleGrid>
+
+              <HStack spacing={4} mb={6}>
+                <Box flex="1">
+                  <SearchFilter onSearch={handleSearch} />
+                </Box>
+                <Select
+                  placeholder="Filter by category"
+                  value={selectedCategory}
+                  onChange={(e) => handleCategoryFilter(e.target.value)}
+                  maxW="200px"
+                  bg={inputBg}
+                  borderColor={inputBorderColor}
+                  _hover={{ borderColor: COLORS.primary[500] }}
+                  _focus={{ borderColor: COLORS.primary[500], boxShadow: 'outline' }}
+                >
+                  <option value="">All Categories</option>
+                  {CATEGORY_NAMES.map((name: string, index: number) => (
+                    <option key={index} value={index.toString()}>
+                      {name}
+                    </option>
+                  ))}
+                </Select>
+              </HStack>
+
+              <Tabs 
+                variant="soft-rounded" 
+                colorScheme="blue"
+                bg={containerBg}
+                p={6}
+                borderRadius="xl"
+                boxShadow="sm"
+                border="1px"
+                borderColor={borderColor}
+              >
+                <TabList mb={8} gap={4}>
+                  <Tab 
+                    _selected={{ 
+                      color: 'white',
+                      bg: COLORS.primary[500]
+                    }}
+                    _hover={{
+                      bg: hoverBg
+                    }}
+                  >
+                    <Icon icon={FiFolder} mr={2} /> My Records
+                  </Tab>
+                  <Tab
+                    _selected={{ 
+                      color: 'white',
+                      bg: COLORS.secondary[500]
+                    }}
+                    _hover={{
+                      bg: hoverBg
+                    }}
+                  >
+                    <Icon icon={FiShare2} mr={2} /> Shared By Me
+                  </Tab>
+                  <Tab
+                    _selected={{ 
+                      color: 'white',
+                      bg: COLORS.accent[500]
+                    }}
+                    _hover={{
+                      bg: hoverBg
+                    }}
+                  >
+                    <Icon icon={FiUsers} mr={2} /> Shared With Me
+                  </Tab>
+                </TabList>
+
+                <TabPanels>
+                  <TabPanel px={0}>
+                    <SimpleGrid columns={{ base: 1, lg: 3 }} spacing={6}>
+                      <Card
+                        variant="outline"
+                        bg={containerBg}
+                        borderRadius="xl"
+                        boxShadow="sm"
+                        borderColor={borderColor}
+                        _hover={{ 
+                          borderColor: COLORS.primary[500],
+                          transform: 'translateY(-2px)',
+                          transition: 'all 0.2s'
+                        }}
+                      >
+                        <CardBody>
+                          <VStack spacing={6}>
+                            <Icon icon={FiUpload} boxSize={10} color={COLORS.primary[500]} />
+                            <Heading size="md" color={textColor}>
+                              Upload Records
+                            </Heading>
+                            <Text textAlign="center" color={subTextColor}>
+                              Upload your medical records securely to the blockchain
+                            </Text>
+                            <Input
+                              placeholder="Enter record name"
+                              value={recordName}
+                              onChange={(e) => setRecordName(e.target.value)}
+                              bg={inputBg}
+                              borderColor={inputBorderColor}
+                              _hover={{ borderColor: COLORS.primary[500] }}
+                              _focus={{ borderColor: COLORS.primary[500], boxShadow: 'outline' }}
                             />
-                            
-                            <Divider my={2} />
-                            <Text fontWeight="bold">Emergency Access:</Text>
-                            <EmergencyAccess
-                              recordId={selectedRecordId}
-                              contract={new ethers.Contract(CONTRACT_ADDRESS, MedicalRecord.abi, library.getSigner())}
-                              onAccessChanged={fetchRecords}
-                              isOwner={account?.toLowerCase() === records.find(r => r.recordId === selectedRecordId)?.owner?.toLowerCase()}
-                            />
-                          </>
-                        )}
-                      </VStack>
-                    </CardBody>
-                  </Card>
-                </SimpleGrid>
-              </TabPanel>
-              <TabPanel>
-                <Card>
-                  <CardBody>
-                    <Heading size="md" mb={4}>Records I've Shared</Heading>
-                    <VStack spacing={4} align="stretch">
-                      {records.map((record) => (
-                        <Box key={record.recordId} p={4} borderWidth={1} borderRadius="md">
-                          <Text fontWeight="bold">
-                            {record.tags && record.tags.length > 0 ? record.tags[0] : `Record ${record.recordId}`}
-                          </Text>
-                          <Text fontSize="sm" color="gray.600" mt={1}>
-                            Date: {new Date(record.timestamp).toLocaleDateString()}
-                          </Text>
-                          <Text fontSize="sm" color="gray.600" mt={1}>
-                            IPFS Hash: {record.ipfsHash}
-                          </Text>
-                          <Divider my={2} />
-                          <Text fontWeight="bold" mb={2}>Shared With:</Text>
-                          <SharedAccessList
-                            recordId={record.recordId}
-                            contract={new ethers.Contract(CONTRACT_ADDRESS, MedicalRecord.abi, library.getSigner())}
-                            onAccessRevoked={() => {
-                              fetchRecords();
-                              fetchSharedWithMeRecords();
-                            }}
-                            isOwner={account?.toLowerCase() === record.owner?.toLowerCase()}
+                            <Box
+                              position="relative"
+                              width="100%"
+                              height="100px"
+                              border="2px dashed"
+                              borderColor={inputBorderColor}
+                              borderRadius="lg"
+                              p={4}
+                              _hover={{ borderColor: COLORS.primary[500] }}
+                            >
+                              <Input
+                                type="file"
+                                height="100%"
+                                width="100%"
+                                position="absolute"
+                                top="0"
+                                left="0"
+                                opacity="0"
+                                aria-hidden="true"
+                                accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                                disabled={isUploading}
+                                onChange={handleFileSelect}
+                              />
+                              <VStack spacing={2} justify="center" height="100%">
+                                <Icon icon={FiUpload} boxSize={6} color={iconColor} />
+                                <Text fontSize="sm" color={subTextColor}>
+                                  {selectedFile ? selectedFile.name : 'Drop files here or click to upload'}
+                                </Text>
+                              </VStack>
+                            </Box>
+                            <Select
+                              placeholder="Select Category"
+                              value={category}
+                              onChange={(e) => setCategory(e.target.value)}
+                              bg={inputBg}
+                              borderColor={inputBorderColor}
+                              _hover={{ borderColor: COLORS.primary[500] }}
+                              _focus={{ borderColor: COLORS.primary[500], boxShadow: 'outline' }}
+                            >
+                              {CATEGORY_NAMES.map((name, index) => (
+                                <option key={index} value={index}>
+                                  {name}
+                                </option>
+                              ))}
+                            </Select>
+                            {isUploading && (
+                              <Box w="100%">
+                                <Progress 
+                                  size="xs" 
+                                  isIndeterminate 
+                                  colorScheme="blue"
+                                  borderRadius="full"
+                                />
+                                <Text mt={2} fontSize="sm" color={subTextColor}>
+                                  {uploadProgress}
+                                </Text>
+                              </Box>
+                            )}
+                            <Button 
+                              colorScheme="blue"
+                              onClick={handleUpload}
+                              isDisabled={!selectedFile || isUploading}
+                              isLoading={isUploading}
+                              loadingText={uploadProgress}
+                              width="full"
+                              leftIcon={<Icon icon={FiUpload} />}
+                              bg={COLORS.primary[500]}
+                              _hover={{ bg: COLORS.primary[600] }}
+                            >
+                              Upload File
+                            </Button>
+                          </VStack>
+                        </CardBody>
+                      </Card>
+
+                      <Card
+                        variant="outline"
+                        bg={containerBg}
+                        borderRadius="xl"
+                        boxShadow="sm"
+                        borderColor={borderColor}
+                        gridColumn={{ base: "auto", lg: "span 2" }}
+                      >
+                        <CardBody>
+                          <HStack mb={6} justify="space-between">
+                            <Heading size="md" color={textColor}>
+                              Your Records
+                            </Heading>
+                            <Icon icon={FiShield} boxSize={6} color={COLORS.primary[500]} />
+                          </HStack>
+                          <RecordsList 
+                            records={filteredRecords.length > 0 ? filteredRecords : records}
+                            onRefresh={fetchRecords}
                           />
-                        </Box>
-                      ))}
-                      {records.length === 0 && (
-                        <Text color="gray.500">No records found</Text>
-                      )}
-                    </VStack>
-                  </CardBody>
-                </Card>
-              </TabPanel>
-              <TabPanel>
-                <Card>
-                  <CardBody>
-                    <Heading size="md" mb={4}>Records Shared With Me</Heading>
-                    <SharedWithMeRecords 
-                      records={sharedWithMeRecords}
-                      onRefresh={fetchSharedWithMeRecords}
-                    />
-                  </CardBody>
-                </Card>
-              </TabPanel>
-            </TabPanels>
-          </Tabs>
-        </>
-      ) : (
-        <Text>Please connect your wallet to access your records</Text>
-      )}
+                        </CardBody>
+                      </Card>
+                    </SimpleGrid>
+                  </TabPanel>
+
+                  <TabPanel>
+                    <Card 
+                      variant="outline" 
+                      bg={containerBg}
+                      borderRadius="xl"
+                      borderColor={borderColor}
+                    >
+                      <CardBody>
+                        <HStack mb={6} justify="space-between">
+                          <Heading size="md" color={textColor}>
+                            Records I've Shared
+                          </Heading>
+                          <Icon icon={FiShare2} boxSize={6} color={COLORS.secondary[500]} />
+                        </HStack>
+                        <VStack spacing={4} align="stretch">
+                          {records.map((record) => (
+                            <Box 
+                              key={record.recordId} 
+                              p={6} 
+                              borderWidth={1} 
+                              borderRadius="lg"
+                              bg={cardBg}
+                              _hover={{ 
+                                borderColor: COLORS.secondary[500],
+                                transform: 'translateY(-2px)',
+                                transition: 'all 0.2s'
+                              }}
+                            >
+                              <Text 
+                                fontWeight="bold"
+                                color={textColor}
+                              >
+                                {record.tags && record.tags.length > 0 ? record.tags[0] : `Record ${record.recordId}`}
+                              </Text>
+                              <Text 
+                                fontSize="sm" 
+                                color={subTextColor} 
+                                mt={1}
+                              >
+                                Date: {new Date(record.timestamp).toLocaleDateString()}
+                              </Text>
+                              <Text 
+                                fontSize="sm" 
+                                color={subTextColor} 
+                                mt={1}
+                                fontFamily="mono"
+                              >
+                                IPFS Hash: {record.ipfsHash}
+                              </Text>
+                              <Divider my={4} />
+                              <Text 
+                                fontWeight="bold" 
+                                mb={3}
+                                color={textColor}
+                              >
+                                Shared With:
+                              </Text>
+                              <SharedAccessList
+                                recordId={record.recordId}
+                                contract={new ethers.Contract(CONTRACT_ADDRESS, MedicalRecord.abi, library.getSigner())}
+                                onAccessRevoked={() => {
+                                  fetchRecords();
+                                  fetchSharedWithMeRecords();
+                                }}
+                                isOwner={account?.toLowerCase() === record.owner?.toLowerCase()}
+                              />
+                            </Box>
+                          ))}
+                          {records.length === 0 && (
+                            <Text 
+                              color={subTextColor}
+                              textAlign="center"
+                              py={8}
+                            >
+                              No records found
+                            </Text>
+                          )}
+                        </VStack>
+                      </CardBody>
+                    </Card>
+                  </TabPanel>
+
+                  <TabPanel>
+                    <Card 
+                      variant="outline" 
+                      bg={containerBg}
+                      borderRadius="xl"
+                      borderColor={borderColor}
+                    >
+                      <CardBody>
+                        <HStack mb={6} justify="space-between">
+                          <Heading size="md" color={textColor}>
+                            Records Shared With Me
+                          </Heading>
+                          <Icon icon={FiUsers} boxSize={6} color={COLORS.accent[500]} />
+                        </HStack>
+                        <SharedWithMeRecords 
+                          records={sharedWithMeRecords}
+                          onRefresh={fetchSharedWithMeRecords}
+                        />
+                      </CardBody>
+                    </Card>
+                  </TabPanel>
+                </TabPanels>
+              </Tabs>
+            </>
+          ) : (
+            <Card 
+              p={8} 
+              textAlign="center" 
+              bg={containerBg}
+              borderRadius="xl"
+              boxShadow="lg"
+            >
+              <VStack spacing={6}>
+                <Icon icon={FiLock} boxSize={12} color={COLORS.primary[500]} />
+                <Heading size="lg" color={textColor}>
+                  Connect Your Wallet
+                </Heading>
+                <Text fontSize="lg" color={subTextColor}>
+                  Please connect your wallet to access your medical records dashboard
+                </Text>
+              </VStack>
+            </Card>
+          )}
+        </VStack>
+      </Container>
     </Box>
   );
 };
