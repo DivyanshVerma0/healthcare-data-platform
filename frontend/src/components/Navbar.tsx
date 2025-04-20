@@ -12,6 +12,7 @@ import {
   Divider,
   useClipboard,
   useToast,
+  Spinner,
 } from '@chakra-ui/react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useWeb3React } from '@web3-react/core';
@@ -23,12 +24,15 @@ import {
   FiKey
 } from 'react-icons/fi';
 import { Icon } from './Icon';
+import { injected } from '../utils/web3';
+import { useState } from 'react';
 
 const Navbar = () => {
-  const { active, account, deactivate } = useWeb3React();
+  const { active, account, deactivate, activate } = useWeb3React();
   const navigate = useNavigate();
   const { onCopy } = useClipboard(account || '');
   const toast = useToast();
+  const [loading, setLoading] = useState(false);
 
   const bg = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.100', 'gray.700');
@@ -46,9 +50,57 @@ const Navbar = () => {
     });
   };
 
+  const handleConnect = async () => {
+    if (!window.ethereum) {
+      toast({
+        title: 'MetaMask not found',
+        description: 'Please install MetaMask browser extension',
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      });
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await activate(injected);
+      localStorage.setItem('previouslyConnected', 'true');
+      toast({
+        title: 'Wallet Connected',
+        description: 'Successfully connected to your wallet',
+        status: 'success',
+        duration: 3000,
+        isClosable: true,
+      });
+    } catch (error: any) {
+      console.error('Connection Error:', error);
+      toast({
+        title: 'Connection Failed',
+        description: error.message || 'Failed to connect to wallet',
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleDisconnect = () => {
-    deactivate();
-    navigate('/');
+    try {
+      deactivate();
+      localStorage.removeItem('previouslyConnected');
+      toast({
+        title: 'Wallet Disconnected',
+        status: 'info',
+        duration: 3000,
+        isClosable: true,
+      });
+      navigate('/');
+    } catch (error) {
+      console.error('Error on disconnect:', error);
+    }
   };
 
   const shortenAddress = (address: string) => {
@@ -178,11 +230,12 @@ const Navbar = () => {
               <Button
                 size="sm"
                 colorScheme="blue"
-                leftIcon={<Icon icon={FiKey} boxSize={4} />}
-                onClick={() => navigate('/connect')}
+                leftIcon={loading ? <Spinner size="sm" /> : <Icon icon={FiKey} boxSize={4} />}
+                onClick={handleConnect}
                 fontWeight="medium"
+                disabled={loading}
               >
-                Connect Wallet
+                {loading ? 'Connecting...' : 'Connect Wallet'}
               </Button>
             )}
           </Box>

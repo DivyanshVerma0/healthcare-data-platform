@@ -7,7 +7,7 @@ import MedicalRecord from '../contracts/MedicalRecord.json';
 import RecordsList from '../components/RecordsList';
 import { MedicalRecord as IMedicalRecord } from '../types/records';
 import SharedAccessList from '../components/SharedAccessList';
-import SharedWithMeRecords from '../components/SharedWithMeRecords';
+import { SharedWithMeRecords } from '../components/SharedWithMeRecords';
 import EmergencyAccess from '../components/EmergencyAccess';
 import SearchFilter from '../components/SearchFilter';
 import { FiUpload, FiFolder, FiShare2, FiUsers, FiLock, FiShield } from 'react-icons/fi';
@@ -764,12 +764,51 @@ const Dashboard = () => {
                       borderColor={borderColor}
                     >
                       <CardBody>
-                        <HStack mb={6} justify="space-between">
-                          <Heading size="md" color={textColor}>
-                            Records I've Shared
-                          </Heading>
+                        <HStack mb={6} justify="space-between" align="center">
+                          <Box>
+                            <Heading size="md" color={textColor}>
+                              Share Record
+                            </Heading>
+                            <Text color={subTextColor} mt={1}>
+                              Share your medical records with other addresses
+                            </Text>
+                          </Box>
                           <Icon icon={FiShare2} boxSize={6} color={COLORS.secondary[500]} />
                         </HStack>
+                        <VStack spacing={4}>
+                          <Select
+                            placeholder="Select Record"
+                            value={selectedRecordId}
+                            onChange={(e) => setSelectedRecordId(e.target.value)}
+                            bg={inputBg}
+                            borderColor={inputBorderColor}
+                          >
+                            {records.map((record) => (
+                              <option key={record.recordId} value={record.recordId}>
+                                {record.tags?.[0] || `Record ${record.recordId}`}
+                              </option>
+                            ))}
+                          </Select>
+                          <Input
+                            placeholder="Enter wallet address"
+                            value={shareAddress}
+                            onChange={(e) => setShareAddress(e.target.value)}
+                            bg={inputBg}
+                            borderColor={inputBorderColor}
+                          />
+                          <Button
+                            colorScheme="blue"
+                            onClick={handleShare}
+                            isLoading={isSharing}
+                            width="full"
+                            leftIcon={<Icon icon={FiShare2} />}
+                            bg={COLORS.secondary[500]}
+                            _hover={{ bg: COLORS.secondary[600] }}
+                          >
+                            Share Record
+                          </Button>
+                        </VStack>
+                        <Divider my={6} />
                         <VStack spacing={4} align="stretch">
                           {records.map((record) => (
                             <Box 
@@ -824,15 +863,6 @@ const Dashboard = () => {
                               />
                             </Box>
                           ))}
-                          {records.length === 0 && (
-                            <Text 
-                              color={subTextColor}
-                              textAlign="center"
-                              py={8}
-                            >
-                              No records found
-                            </Text>
-                          )}
                         </VStack>
                       </CardBody>
                     </Card>

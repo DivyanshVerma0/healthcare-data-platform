@@ -4,6 +4,7 @@ import Navbar from './components/Navbar';
 import Home from './pages/Home';
 import Dashboard from './pages/Dashboard';
 import Records from './pages/Records';
+import SharedAccess from './pages/SharedAccess';
 import { Web3ReactProvider } from '@web3-react/core';
 import { getLibrary } from './utils/web3';
 
@@ -17,6 +18,7 @@ function App() {
             <Route path="/" element={<Home />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/records" element={<Records />} />
+            <Route path="/shared" element={<SharedAccess />} />
           </Routes>
         </Router>
       </ChakraProvider>

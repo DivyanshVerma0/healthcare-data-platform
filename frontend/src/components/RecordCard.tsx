@@ -1,71 +1,111 @@
 import React from 'react';
-import { Box, Text, Button, HStack, VStack } from '@chakra-ui/react';
-import { CategoryLabels, Category } from './CategoryLabels';
-import { downloadFromIPFS } from '../utils/ipfs';
+import {
+  Box,
+  VStack,
+  Text,
+  Button,
+  HStack,
+  Badge,
+  useColorModeValue,
+} from '@chakra-ui/react';
+import { FiEye, FiDownload, FiShare2 } from 'react-icons/fi';
+import { Icon } from './Icon';
+
+export interface Record {
+  id: string;
+  name: string;
+  description: string;
+  ipfsHash: string;
+  owner: string;
+  timestamp: string;
+}
 
 interface RecordCardProps {
-  id: string;
-  title: string;
-  description: string;
-  category: Category;
-  ipfsHash: string;
-  date: string;
+  record: Record;
+  onView: () => void;
   onShare?: () => void;
-  showShareButton?: boolean;
+  onDownload?: () => void;
+  showActions?: boolean;
 }
 
 export const RecordCard: React.FC<RecordCardProps> = ({
-  id,
-  title,
-  description,
-  category,
-  ipfsHash,
-  date,
+  record,
+  onView,
   onShare,
-  showShareButton = true
+  onDownload,
+  showActions = true,
 }) => {
-  const handleDownload = async () => {
-    try {
-      await downloadFromIPFS(ipfsHash);
-    } catch (error) {
-      console.error('Error downloading file:', error);
-    }
-  };
+  const bgColor = useColorModeValue('white', 'gray.800');
+  const borderColor = useColorModeValue('gray.200', 'gray.700');
+  const textColor = useColorModeValue('gray.600', 'gray.400');
 
   return (
     <Box
+      bg={bgColor}
       borderWidth="1px"
+      borderColor={borderColor}
       borderRadius="lg"
       p={4}
-      mb={4}
-      bg="white"
-      boxShadow="sm"
-      _hover={{ boxShadow: 'md' }}
+      shadow="sm"
+      transition="all 0.2s"
+      _hover={{ shadow: 'md' }}
     >
       <VStack align="stretch" spacing={3}>
-        <HStack justify="space-between">
-          <Text fontSize="lg" fontWeight="bold">
-            {title}
+        <Box>
+          <HStack justify="space-between" align="flex-start">
+            <Text fontWeight="semibold" fontSize="lg" noOfLines={1}>
+              {record.name}
+            </Text>
+            <Badge colorScheme="blue" fontSize="xs">
+              {new Date(record.timestamp).toLocaleDateString()}
+            </Badge>
+          </HStack>
+          <Text color={textColor} fontSize="sm" noOfLines={2} mt={1}>
+            {record.description}
           </Text>
-          <CategoryLabels category={category} />
-        </HStack>
-        
-        <Text color="gray.600">{description}</Text>
-        
-        <Text fontSize="sm" color="gray.500">
-          Date: {new Date(date).toLocaleDateString()}
-        </Text>
-        
-        <HStack spacing={4}>
-          <Button size="sm" colorScheme="blue" onClick={handleDownload}>
-            Download
-          </Button>
-          {showShareButton && onShare && (
-            <Button size="sm" colorScheme="green" onClick={onShare}>
-              Share
+        </Box>
+
+        <Box>
+          <Text fontSize="xs" color={textColor}>
+            IPFS Hash: {record.ipfsHash.slice(0, 8)}...{record.ipfsHash.slice(-6)}
+          </Text>
+          <Text fontSize="xs" color={textColor}>
+            Owner: {record.owner.slice(0, 6)}...{record.owner.slice(-4)}
+          </Text>
+        </Box>
+
+        {showActions && (
+          <HStack spacing={2} mt={2}>
+            <Button
+              size="sm"
+              leftIcon={<Icon icon={FiEye} />}
+              onClick={onView}
+              flex={1}
+            >
+              View
             </Button>
-          )}
-        </HStack>
+            {onDownload && (
+              <Button
+                size="sm"
+                leftIcon={<Icon icon={FiDownload} />}
+                onClick={onDownload}
+                flex={1}
+              >
+                Download
+              </Button>
+            )}
+            {onShare && (
+              <Button
+                size="sm"
+                leftIcon={<Icon icon={FiShare2} />}
+                onClick={onShare}
+                flex={1}
+              >
+                Share
+              </Button>
+            )}
+          </HStack>
+        )}
       </VStack>
     </Box>
   );

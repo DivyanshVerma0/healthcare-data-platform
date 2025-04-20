@@ -15,14 +15,19 @@ import {
 import { ethers } from 'ethers';
 import { DeleteIcon } from '@chakra-ui/icons';
 
-interface SharedAccessListProps {
+export interface SharedAccessListProps {
   recordId: string;
   contract: ethers.Contract;
-  isOwner: boolean;
   onAccessRevoked: () => void;
+  isOwner: boolean;
 }
 
-const SharedAccessList: React.FC<SharedAccessListProps> = ({ recordId, contract, isOwner, onAccessRevoked }) => {
+const SharedAccessList: React.FC<SharedAccessListProps> = ({ 
+  recordId, 
+  contract, 
+  onAccessRevoked,
+  isOwner 
+}) => {
   const [sharedAddresses, setSharedAddresses] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -94,49 +99,25 @@ const SharedAccessList: React.FC<SharedAccessListProps> = ({ recordId, contract,
   }, [fetchSharedAddresses]);
 
   const revokeAccess = async (address: string) => {
-    if (!recordId || !contract) return;
-
-    setIsLoading(true);
+    if (!isOwner) return;
+    
     try {
-      // Validate record ID format
-      if (!recordId.match(/^\d+$/)) {
-        throw new Error('Invalid record ID format');
-      }
-
-      const recordIdBN = ethers.BigNumber.from(recordId);
-      console.log('Revoking access:', { recordId: recordIdBN.toString(), address });
-      
-      // Verify record exists before revoking
-      const exists = await contract.recordExists(recordIdBN);
-      if (!exists) {
-        throw new Error('Record does not exist');
-      }
-      
-      const tx = await contract.revokeAccess(recordIdBN, address);
-      
-      toast({
-        title: "Transaction Submitted",
-        description: "Revoking access...",
-        status: "info",
-        duration: 3000,
-      });
-
+      setIsLoading(true);
+      const tx = await contract.revokeAccess(recordId, address);
       await tx.wait();
       
       toast({
         title: "Access Revoked",
-        description: `Access revoked for ${address}`,
         status: "success",
         duration: 3000,
       });
       
-      await fetchSharedAddresses();
       onAccessRevoked();
     } catch (error) {
       console.error('Error revoking access:', error);
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Failed to revoke access",
+        description: "Failed to revoke access",
         status: "error",
         duration: 3000,
       });
@@ -144,6 +125,10 @@ const SharedAccessList: React.FC<SharedAccessListProps> = ({ recordId, contract,
       setIsLoading(false);
     }
   };
+
+  if (!isOwner) {
+    return null;
+  }
 
   if (isLoading) {
     return (
@@ -165,20 +150,33 @@ const SharedAccessList: React.FC<SharedAccessListProps> = ({ recordId, contract,
   return (
     <VStack spacing={2} align="stretch">
       {sharedAddresses.map((address) => (
-        <Box key={address} p={2} borderWidth="1px" borderRadius="md">
-          <HStack justify="space-between">
-            <Text fontSize="sm">{address}</Text>
-            <Button
-              size="sm"
-              colorScheme="red"
-              onClick={() => revokeAccess(address)}
-              isLoading={isLoading}
-            >
-              Revoke
-            </Button>
-          </HStack>
+        <Box 
+          key={address}
+          p={2}
+          borderWidth={1}
+          borderRadius="md"
+          display="flex"
+          justifyContent="space-between"
+          alignItems="center"
+        >
+          <Text fontSize="sm" fontFamily="mono">
+            {address}
+          </Text>
+          <Button
+            size="sm"
+            colorScheme="red"
+            onClick={() => revokeAccess(address)}
+            isLoading={isLoading}
+          >
+            Revoke
+          </Button>
         </Box>
       ))}
+      {sharedAddresses.length === 0 && (
+        <Text color="gray.500" fontSize="sm">
+          No shared access
+        </Text>
+      )}
     </VStack>
   );
 };

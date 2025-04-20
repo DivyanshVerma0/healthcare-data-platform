@@ -1,100 +1,56 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   VStack,
   Text,
-  Button,
   Box,
-  Link,
-  HStack,
+  Spinner,
+  Alert,
+  AlertIcon,
+  Grid,
+  Badge,
   useToast,
-  Tag,
-  Wrap,
-  WrapItem,
 } from '@chakra-ui/react';
-import { ExternalLinkIcon, RepeatIcon } from '@chakra-ui/icons';
+import { ethers } from 'ethers';
+import { RecordCard } from './RecordCard';
 import { MedicalRecord } from '../types/records';
-import { CategoryLabels } from './CategoryLabels';
 
-interface SharedWithMeRecordsProps {
+export interface SharedWithMeRecordsProps {
   records: MedicalRecord[];
-  onRefresh: () => void;
+  onRefresh: () => Promise<void>;
 }
 
-const SharedWithMeRecords: React.FC<SharedWithMeRecordsProps> = ({ records, onRefresh }) => {
+export const SharedWithMeRecords: React.FC<SharedWithMeRecordsProps> = ({ records, onRefresh }) => {
   const toast = useToast();
 
-  const handleView = (ipfsUrl: string) => {
-    window.open(ipfsUrl, '_blank');
-  };
-
-  const handleDownload = async (record: MedicalRecord) => {
-    try {
-      window.open(record.ipfsUrl, '_blank');
-    } catch (error) {
-      console.error('Error downloading file:', error);
-      toast({
-        title: "Error",
-        description: "Failed to download file",
-        status: "error",
-        duration: 3000,
-      });
-    }
-  };
+  if (!records || records.length === 0) {
+    return (
+      <Text textAlign="center" py={8} color="gray.500">
+        No records have been shared with you
+      </Text>
+    );
+  }
 
   return (
     <VStack spacing={4} align="stretch">
-      {records.length > 0 ? (
-        <VStack spacing={3} align="stretch">
-          {records.map((record) => (
-            <Box
-              key={record.recordId}
-              p={4}
-              borderWidth={1}
-              borderRadius="md"
-            >
-              <Text fontWeight="bold">
-                {record.tags && record.tags.length > 0 ? record.tags[0] : `Record ${record.recordId}`}
-              </Text>
-              <Text fontSize="sm" color="gray.600" mt={1}>
-                Date: {new Date(record.timestamp).toLocaleDateString()}
-              </Text>
-              <Text fontSize="sm" color="gray.600">
-                IPFS Hash: {record.ipfsHash}
-              </Text>
-              <Text fontSize="sm" color="gray.600">
-                Shared by: {record.owner}
-              </Text>
-              <HStack mt={3} spacing={4}>
-                <Button
-                  size="sm"
-                  colorScheme="blue"
-                  onClick={() => handleView(record.ipfsUrl)}
-                  leftIcon={<ExternalLinkIcon />}
-                >
-                  View
-                </Button>
-                <Link href={record.ipfsUrl} isExternal>
-                  <Button size="sm" colorScheme="green">
-                    Download
-                  </Button>
-                </Link>
-              </HStack>
-            </Box>
-          ))}
-        </VStack>
-      ) : (
-        <Text color="gray.500">No shared records found</Text>
-      )}
-      <Button
-        colorScheme="blue"
-        onClick={onRefresh}
-        size="sm"
-        leftIcon={<RepeatIcon />}
-      >
-        Refresh Shared Records
-      </Button>
+      {records.map((record) => (
+        <Box 
+          key={record.recordId}
+          p={4}
+          borderWidth={1}
+          borderRadius="lg"
+          _hover={{ borderColor: 'blue.500' }}
+        >
+          <Text fontWeight="bold">
+            {record.tags?.[0] || `Record ${record.recordId}`}
+          </Text>
+          <Text fontSize="sm" color="gray.500">
+            Shared on: {new Date(record.timestamp).toLocaleDateString()}
+          </Text>
+          <Text fontSize="sm" fontFamily="mono" mt={2}>
+            IPFS Hash: {record.ipfsHash}
+          </Text>
+        </Box>
+      ))}
     </VStack>
   );
 };
-
-export default SharedWithMeRecords;
