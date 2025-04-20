@@ -5,10 +5,17 @@ import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
+import "@openzeppelin/contracts/access/AccessControl.sol";
 
-contract MedicalRecord is ERC721, Ownable, ReentrancyGuard {
+contract MedicalRecord is ERC721, Ownable, ReentrancyGuard, AccessControl {
     using Counters for Counters.Counter;
     Counters.Counter private _tokenIds;
+
+    // Role definitions
+    bytes32 public constant PATIENT_ROLE = keccak256("PATIENT_ROLE");
+    bytes32 public constant DOCTOR_ROLE = keccak256("DOCTOR_ROLE");
+    bytes32 public constant RESEARCHER_ROLE = keccak256("RESEARCHER_ROLE");
+    bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
 
     enum Category {
         GENERAL,
@@ -32,6 +39,7 @@ contract MedicalRecord is ERC721, Ownable, ReentrancyGuard {
         string[] tags;
         address[] sharedWith;
         mapping(address => bool) hasAccess;
+        mapping(bytes32 => bool) roleAccess; // Role-based access
     }
 
     struct EmergencyAccess {
@@ -39,10 +47,19 @@ contract MedicalRecord is ERC721, Ownable, ReentrancyGuard {
         uint256 expiryTime;
         bool isActive;
     }
+
+    struct UserProfile {
+        string name;
+        string specialization; // For doctors
+        string institution;
+        bool isVerified;
+        uint256 verificationTimestamp;
+    }
     
     mapping(uint256 => Record) public records;
     mapping(address => uint256[]) public patientRecords;
     mapping(uint256 => mapping(address => EmergencyAccess)) public emergencyAccess;
+    mapping(address => UserProfile) public userProfiles;
     uint256[] private allRecordIds;
     
     mapping(uint256 => mapping(address => bool)) private sharedAccess;
@@ -59,13 +76,77 @@ contract MedicalRecord is ERC721, Ownable, ReentrancyGuard {
     event EmergencyAccessGranted(uint256 recordId, address emergencyContact, uint256 expiryTime);
     event EmergencyAccessRevoked(uint256 recordId, address emergencyContact);
     event TagsUpdated(uint256 recordId, string[] tags);
+    event RoleGranted(address account, bytes32 role);
+    event RoleRevoked(address account, bytes32 role);
+    event UserProfileUpdated(address user, string name, string specialization, string institution);
     
-    constructor() ERC721("MedicalRecord", "MREC") Ownable() {
-        // If you still want to set the owner to msg.sender, you can do:
-        // _transferOwnership(msg.sender);
-        // But this is redundant since Ownable already sets msg.sender as owner
+    constructor() ERC721("MedicalRecord", "MREC") {
+        _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        _setupRole(ADMIN_ROLE, msg.sender);
     }
-    
+
+    modifier onlyAdmin() {
+        require(hasRole(ADMIN_ROLE, msg.sender), "Caller is not an admin");
+        _;
+    }
+
+    modifier onlyDoctor() {
+        require(hasRole(DOCTOR_ROLE, msg.sender), "Caller is not a doctor");
+        _;
+    }
+
+    modifier onlyPatient() {
+        require(hasRole(PATIENT_ROLE, msg.sender), "Caller is not a patient");
+        _;
+    }
+
+    modifier onlyResearcher() {
+        require(hasRole(RESEARCHER_ROLE, msg.sender), "Caller is not a researcher");
+        _;
+    }
+
+    function supportsInterface(bytes4 interfaceId)
+        public
+        view
+        virtual
+        override(ERC721, AccessControl)
+        returns (bool)
+    {
+        return super.supportsInterface(interfaceId);
+    }
+
+    // Role management functions
+    function grantRole(bytes32 role, address account) public override onlyAdmin {
+        _grantRole(role, account);
+        emit RoleGranted(account, role);
+    }
+
+    function revokeRole(bytes32 role, address account) public override onlyAdmin {
+        _revokeRole(role, account);
+        emit RoleRevoked(account, role);
+    }
+
+    // User profile management
+    function updateUserProfile(
+        string memory name,
+        string memory specialization,
+        string memory institution
+    ) public {
+        require(bytes(name).length > 0, "Name cannot be empty");
+        UserProfile storage profile = userProfiles[msg.sender];
+        profile.name = name;
+        profile.specialization = specialization;
+        profile.institution = institution;
+        
+        emit UserProfileUpdated(msg.sender, name, specialization, institution);
+    }
+
+    function verifyUser(address user) public onlyAdmin {
+        UserProfile storage profile = userProfiles[user];
+        profile.isVerified = true;
+        profile.verificationTimestamp = block.timestamp;
+    }
+
     function recordExists(uint256 recordId) public view returns (bool) {
         return records[recordId].exists;
     }
@@ -76,6 +157,8 @@ contract MedicalRecord is ERC721, Ownable, ReentrancyGuard {
         Category category,
         string[] memory tags
     ) public {
+        require(hasRole(PATIENT_ROLE, msg.sender) || hasRole(DOCTOR_ROLE, msg.sender), 
+            "Only patients and doctors can create records");
         require(bytes(ipfsHash).length > 0, "Invalid IPFS hash");
         
         _tokenIds.increment();
@@ -139,6 +222,14 @@ contract MedicalRecord is ERC721, Ownable, ReentrancyGuard {
         require(_to != msg.sender, "Cannot grant access to yourself");
         require(ownerOf(_recordId) == msg.sender, "Not the owner of the record");
         require(!sharedAccess[_recordId][_to], "Access already granted");
+        
+        // Check if recipient has appropriate role
+        require(
+            hasRole(DOCTOR_ROLE, _to) || 
+            hasRole(RESEARCHER_ROLE, _to) || 
+            hasRole(PATIENT_ROLE, _to),
+            "Recipient must have a valid role"
+        );
         
         sharedAccess[_recordId][_to] = true;
         sharedWithMe[_to].push(_recordId);
@@ -296,5 +387,38 @@ contract MedicalRecord is ERC721, Ownable, ReentrancyGuard {
         }
         
         emit TagsUpdated(recordId, newTags);
+    }
+
+    // Grant role-based access to a record
+    function grantRoleAccess(uint256 _recordId, bytes32 _role) public {
+        require(recordExists(_recordId), "Record does not exist");
+        require(ownerOf(_recordId) == msg.sender, "Not the owner of the record");
+        
+        Record storage record = records[_recordId];
+        record.roleAccess[_role] = true;
+    }
+
+    // Check if a role has access to a record
+    function hasRoleAccess(uint256 _recordId, bytes32 _role) public view returns (bool) {
+        if (!recordExists(_recordId)) return false;
+        return records[_recordId].roleAccess[_role];
+    }
+
+    // Get user profile
+    function getUserProfile(address user) public view returns (
+        string memory name,
+        string memory specialization,
+        string memory institution,
+        bool isVerified,
+        uint256 verificationTimestamp
+    ) {
+        UserProfile storage profile = userProfiles[user];
+        return (
+            profile.name,
+            profile.specialization,
+            profile.institution,
+            profile.isVerified,
+            profile.verificationTimestamp
+        );
     }
 }

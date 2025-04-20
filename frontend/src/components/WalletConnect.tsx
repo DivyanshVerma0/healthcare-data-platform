@@ -1,3 +1,4 @@
+import React, { useState, useEffect } from 'react';
 import {
   Button,
   Text,
@@ -6,27 +7,32 @@ import {
   Spinner,
   VStack,
   HStack,
+  useColorModeValue,
 } from '@chakra-ui/react';
 import { useWeb3React } from '@web3-react/core';
 import { injected } from '../utils/web3';
-import { useState, useEffect } from 'react';
 import { FiKey } from 'react-icons/fi';
-import { Icon } from './Icon';
+import Icon from './Icon';
 
 const WalletConnect = () => {
   const { active, account, activate, deactivate } = useWeb3React();
   const [loading, setLoading] = useState(false);
   const toast = useToast();
+  const buttonBg = useColorModeValue('gray.100', 'whiteAlpha.200');
+  const buttonHoverBg = useColorModeValue('gray.200', 'whiteAlpha.300');
+  const textColor = useColorModeValue('gray.800', 'white');
 
   // Handle connection on page load
   useEffect(() => {
     const connectWalletOnPageLoad = async () => {
-      // Check if ethereum is injected
       if (window.ethereum && localStorage.getItem('previouslyConnected') === 'true') {
         try {
+          setLoading(true);
           await activate(injected);
         } catch (error) {
           console.error('Error on page load:', error);
+        } finally {
+          setLoading(false);
         }
       }
     };
@@ -87,10 +93,10 @@ const WalletConnect = () => {
 
   if (loading) {
     return (
-      <Button size="sm" disabled>
+      <Button size="sm" disabled bg={buttonBg}>
         <HStack spacing={2}>
           <Spinner size="sm" />
-          <Text>Connecting...</Text>
+          <Text color={textColor}>Connecting...</Text>
         </HStack>
       </Button>
     );
@@ -100,7 +106,7 @@ const WalletConnect = () => {
     <Box>
       {active ? (
         <VStack spacing={2} align="flex-end">
-          <Text color="white" fontSize="sm">
+          <Text color={textColor} fontSize="sm">
             {account?.slice(0, 6)}...{account?.slice(-4)}
           </Text>
           <Button
@@ -108,7 +114,7 @@ const WalletConnect = () => {
             colorScheme="red"
             size="sm"
             variant="ghost"
-            _hover={{ bg: 'whiteAlpha.200' }}
+            _hover={{ bg: buttonHoverBg }}
           >
             Disconnect
           </Button>
@@ -118,9 +124,10 @@ const WalletConnect = () => {
           onClick={connect}
           colorScheme="blue"
           size="sm"
-          leftIcon={<Icon icon={FiKey} />}
-          _hover={{ bg: 'whiteAlpha.200' }}
-          variant="ghost"
+          leftIcon={<Icon icon={FiKey} boxSize={4} />}
+          bg={buttonBg}
+          _hover={{ bg: buttonHoverBg }}
+          color={textColor}
         >
           Connect Wallet
         </Button>

@@ -1,246 +1,454 @@
+import React from 'react';
 import {
   Box,
   Flex,
+  HStack,
+  IconButton,
   Button,
-  useColorModeValue,
-  Container,
   Menu,
-  MenuButton,
   MenuList,
   MenuItem,
+  useDisclosure,
+  useColorModeValue,
+  Stack,
   Text,
-  Divider,
-  useClipboard,
+  Badge,
+  MenuButton,
+  MenuDivider,
   useToast,
-  Spinner,
+  VStack,
+  Tooltip,
 } from '@chakra-ui/react';
-import { Link, useNavigate } from 'react-router-dom';
+import {
+  HamburgerIcon,
+  CloseIcon,
+  ChevronDownIcon,
+  CopyIcon,
+  ExternalLinkIcon,
+  SmallCloseIcon,
+  StarIcon,
+  SearchIcon,
+  AtSignIcon,
+  EditIcon,
+  UnlockIcon,
+  ViewIcon,
+  CheckIcon,
+  InfoOutlineIcon,
+  CalendarIcon,
+  RepeatIcon,
+  SettingsIcon,
+} from '@chakra-ui/icons';
+import { useRole } from '../contexts/RoleContext';
 import { useWeb3React } from '@web3-react/core';
-import { 
-  FiCopy, 
-  FiExternalLink, 
-  FiLogOut, 
-  FiUser,
-  FiKey
-} from 'react-icons/fi';
-import { Icon } from './Icon';
-import { injected } from '../utils/web3';
-import { useState } from 'react';
+import WalletConnect from './WalletConnect';
+import { Link } from 'react-router-dom';
+
+const NavLink = ({ children, href }: { children: React.ReactNode; href: string }) => {
+  const hoverBg = useColorModeValue('gray.100', 'gray.700');
+  return (
+    <Link to={href} style={{ textDecoration: 'none' }}>
+      <Button
+        variant="ghost"
+        size="sm"
+        px={3}
+        _hover={{
+          bg: hoverBg,
+        }}
+      >
+        {children}
+      </Button>
+    </Link>
+  );
+};
+
+interface WalletMenuItemProps {
+  icon: React.ReactElement;
+  label: string;
+  onClick: () => void;
+  color: string;
+  hoverBg: string;
+  isDestructive?: boolean;
+}
+
+const WalletMenuItem: React.FC<WalletMenuItemProps> = ({ 
+  icon, 
+  label, 
+  onClick, 
+  color, 
+  hoverBg, 
+  isDestructive = false 
+}) => (
+  <MenuItem
+    icon={icon}
+    onClick={onClick}
+    transition="all 0.2s"
+    _hover={{
+      bg: isDestructive ? 'red.50' : hoverBg,
+      color: isDestructive ? 'red.500' : color,
+      transform: 'translateX(5px)',
+    }}
+    color={isDestructive ? 'red.500' : 'inherit'}
+    borderRadius="md"
+    mx={1}
+    px={3}
+  >
+    {label}
+  </MenuItem>
+);
+
+interface RoleMenuItemProps {
+  icon: React.ReactElement;
+  label: string;
+  onClick: () => void;
+  color: string;
+  hoverBg: string;
+}
+
+const RoleMenuItem: React.FC<RoleMenuItemProps> = ({ icon, label, onClick, color, hoverBg }) => (
+  <MenuItem
+    icon={icon}
+    onClick={onClick}
+    transition="all 0.2s"
+    _hover={{
+      bg: hoverBg,
+      color: color,
+      transform: 'translateX(5px)',
+    }}
+    borderRadius="md"
+    mx={1}
+    px={3}
+  >
+    {label}
+  </MenuItem>
+);
 
 const Navbar = () => {
-  const { active, account, deactivate, activate } = useWeb3React();
-  const navigate = useNavigate();
-  const { onCopy } = useClipboard(account || '');
+  const { isOpen, onOpen, onClose } = useDisclosure();
+  const { role, userProfile } = useRole();
+  const { account, deactivate } = useWeb3React();
   const toast = useToast();
-  const [loading, setLoading] = useState(false);
+  
+  const bgColor = useColorModeValue('white', 'gray.800');
+  const borderColor = useColorModeValue('gray.200', 'gray.700');
+  const textColor = useColorModeValue('gray.700', 'gray.200');
+  const iconColor = useColorModeValue('gray.600', 'gray.400');
+  const connectedColor = useColorModeValue('green.500', 'green.300');
+  const hoverBg = useColorModeValue('gray.100', 'gray.700');
+  const menuBg = useColorModeValue('white', 'gray.800');
+  const menuBorderColor = useColorModeValue('gray.200', 'gray.600');
+  const menuItemHoverBg = useColorModeValue('gray.50', 'gray.700');
+  const menuItemColor = useColorModeValue('gray.700', 'gray.300');
+  const gradientFrom = useColorModeValue('white', 'gray.800');
+  const gradientTo = useColorModeValue('gray.50', 'gray.700');
 
-  const bg = useColorModeValue('white', 'gray.800');
-  const borderColor = useColorModeValue('gray.100', 'gray.700');
-  const textColor = useColorModeValue('gray.600', 'gray.300');
-  const buttonHoverBg = useColorModeValue('gray.50', 'gray.700');
-  const brandColor = useColorModeValue('blue.500', 'blue.300');
-
-  const handleCopyAddress = () => {
-    onCopy();
-    toast({
-      title: 'Address copied',
-      status: 'success',
-      duration: 2000,
-      isClosable: true,
-    });
+  const formatAddress = (address: string) => {
+    return `${address.slice(0, 6)}...${address.slice(-4)}`;
   };
 
-  const handleConnect = async () => {
-    if (!window.ethereum) {
+  const handleCopyAddress = () => {
+    if (account) {
+      navigator.clipboard.writeText(account);
       toast({
-        title: 'MetaMask not found',
-        description: 'Please install MetaMask browser extension',
-        status: 'error',
-        duration: 5000,
+        title: "Address copied",
+        description: "Wallet address copied to clipboard",
+        status: "success",
+        duration: 2000,
         isClosable: true,
+        position: "top-right"
       });
-      return;
-    }
-
-    setLoading(true);
-    try {
-      await activate(injected);
-      localStorage.setItem('previouslyConnected', 'true');
-      toast({
-        title: 'Wallet Connected',
-        description: 'Successfully connected to your wallet',
-        status: 'success',
-        duration: 3000,
-        isClosable: true,
-      });
-    } catch (error: any) {
-      console.error('Connection Error:', error);
-      toast({
-        title: 'Connection Failed',
-        description: error.message || 'Failed to connect to wallet',
-        status: 'error',
-        duration: 5000,
-        isClosable: true,
-      });
-    } finally {
-      setLoading(false);
     }
   };
 
   const handleDisconnect = () => {
-    try {
+    if (deactivate) {
       deactivate();
-      localStorage.removeItem('previouslyConnected');
       toast({
-        title: 'Wallet Disconnected',
-        status: 'info',
-        duration: 3000,
+        title: "Wallet disconnected",
+        description: "Your wallet has been disconnected",
+        status: "info",
+        duration: 2000,
         isClosable: true,
+        position: "top-right"
       });
-      navigate('/');
-    } catch (error) {
-      console.error('Error on disconnect:', error);
     }
   };
 
-  const shortenAddress = (address: string) => {
-    return `${address.substring(0, 6)}...${address.substring(address.length - 4)}`;
+  const handleViewOnExplorer = () => {
+    if (account) {
+      window.open(`https://etherscan.io/address/${account}`, '_blank');
+    }
+  };
+
+  const getRoleIcon = () => {
+    const iconProps = {
+      w: 4,
+      h: 4,
+      color: iconColor,
+      transition: 'all 0.2s',
+    };
+
+    switch (role) {
+      case 'PATIENT':
+        return <AtSignIcon {...iconProps} />;
+      case 'DOCTOR':
+        return <CheckIcon {...iconProps} />;
+      case 'RESEARCHER':
+        return <SearchIcon {...iconProps} />;
+      case 'ADMIN':
+        return <StarIcon {...iconProps} />;
+      default:
+        return <AtSignIcon {...iconProps} />;
+    }
   };
 
   return (
     <Box
+      bg={bgColor}
+      px={4}
       position="sticky"
       top={0}
-      zIndex={10}
-      bg={bg}
+      zIndex={100}
       borderBottom="1px"
       borderColor={borderColor}
-      py={2}
+      shadow="sm"
     >
-      <Container maxW="container.xl">
-        <Flex alignItems="center" justifyContent="space-between" height="48px">
-          <Flex alignItems="center" gap={8}>
-            <Box
-              as={Link}
-              to="/"
+      <Flex h={16} alignItems="center" justifyContent="space-between">
+        <IconButton
+          size="md"
+          icon={isOpen ? <CloseIcon /> : <HamburgerIcon />}
+          aria-label="Open Menu"
+          display={{ base: 'flex', md: 'none' }}
+          onClick={isOpen ? onClose : onOpen}
+          variant="ghost"
+        />
+        <HStack spacing={8} alignItems="center">
+          <Link to="/" style={{ textDecoration: 'none' }}>
+            <Text
+              fontWeight="bold"
               fontSize="xl"
-              fontWeight="semibold"
-              color={brandColor}
-              _hover={{ color: useColorModeValue('blue.600', 'blue.200') }}
-              letterSpacing="tight"
+              color={textColor}
+              _hover={{ color: 'blue.500' }}
             >
               HealthChain
-            </Box>
-            <Flex gap={6}>
-              <Button
-                as={Link}
-                to="/dashboard"
-                variant="ghost"
-                color={textColor}
-                size="sm"
-                fontWeight="medium"
-                px={3}
-                _hover={{ bg: buttonHoverBg }}
+            </Text>
+          </Link>
+          <HStack as="nav" spacing={4} display={{ base: 'none', md: 'flex' }}>
+            <NavLink href="/dashboard">Dashboard</NavLink>
+            <NavLink href="/records">Records</NavLink>
+            <NavLink href="/shared">Shared Access</NavLink>
+            <NavLink href="/roles">Role Management</NavLink>
+          </HStack>
+        </HStack>
+        <Flex alignItems="center" gap={4}>
+          {account && role && (
+            <Menu>
+              <Tooltip
+                label={`Logged in as ${role}`}
+                hasArrow
+                placement="bottom"
               >
-                Dashboard
-              </Button>
-              <Button
-                as={Link}
-                to="/records"
-                variant="ghost"
-                color={textColor}
-                size="sm"
-                fontWeight="medium"
-                px={3}
-                _hover={{ bg: buttonHoverBg }}
-              >
-                Records
-              </Button>
-              <Button
-                as={Link}
-                to="/shared"
-                variant="ghost"
-                color={textColor}
-                size="sm"
-                fontWeight="medium"
-                px={3}
-                _hover={{ bg: buttonHoverBg }}
-              >
-                Shared Access
-              </Button>
-            </Flex>
-          </Flex>
-
-          <Box>
-            {active ? (
-              <Menu>
-                <MenuButton
-                  as={Button}
+                <Button
+                  variant="ghost"
                   size="sm"
-                  variant="outline"
-                  colorScheme="blue"
-                  leftIcon={<Icon icon={FiKey} boxSize={4} />}
-                  rightIcon={<Icon icon={FiUser} boxSize={4} />}
-                  _hover={{ bg: buttonHoverBg }}
-                  fontWeight="medium"
+                  px={3}
+                  _hover={{ bg: hoverBg }}
                 >
-                  {account ? shortenAddress(account) : 'Connected'}
-                </MenuButton>
-                <MenuList
-                  shadow="lg"
-                  border="1px solid"
-                  borderColor={borderColor}
-                  py={2}
+                  <HStack spacing={1.5}>
+                    {getRoleIcon()}
+                    <Text fontSize="sm">{role}</Text>
+                    {userProfile?.name && (
+                      <Badge 
+                        colorScheme="blue" 
+                        variant="subtle"
+                        px={2}
+                        py={0.5}
+                        borderRadius="full"
+                        fontSize="xs"
+                      >
+                        {userProfile.name}
+                      </Badge>
+                    )}
+                  </HStack>
+                </Button>
+              </Tooltip>
+              <MenuList
+                bg={menuBg}
+                borderColor={menuBorderColor}
+                shadow="xl"
+                p={0}
+                overflow="hidden"
+                minW="240px"
+                borderRadius="xl"
+              >
+                <Box
+                  px={4}
+                  py={4}
+                  bgGradient={`linear(to-b, ${gradientFrom}, ${gradientTo})`}
                 >
-                  <Box px={4} py={2}>
-                    <Text fontSize="sm" color={textColor} fontWeight="medium">
+                  <Text fontSize="sm" color="gray.500" mb={2}>
+                    Role Settings
+                  </Text>
+                  <HStack spacing={3}>
+                    {getRoleIcon()}
+                    <Text 
+                      fontWeight="semibold" 
+                      fontSize="md"
+                      letterSpacing="wide"
+                    >
+                      {role}
+                    </Text>
+                  </HStack>
+                </Box>
+                <VStack align="stretch" py={2}>
+                  <RoleMenuItem
+                    icon={<EditIcon />}
+                    label="Edit Profile"
+                    onClick={() => {}}
+                    color={menuItemColor}
+                    hoverBg={menuItemHoverBg}
+                  />
+                  <RoleMenuItem
+                    icon={<AtSignIcon />}
+                    label="Update Contact"
+                    onClick={() => {}}
+                    color={menuItemColor}
+                    hoverBg={menuItemHoverBg}
+                  />
+                  <MenuDivider my={2} />
+                  <RoleMenuItem
+                    icon={<UnlockIcon />}
+                    label="Change Role"
+                    onClick={() => {}}
+                    color={menuItemColor}
+                    hoverBg={menuItemHoverBg}
+                  />
+                </VStack>
+              </MenuList>
+            </Menu>
+          )}
+          <Menu>
+            <Tooltip
+              label={account ? 'Connected' : 'Connect Wallet'}
+              hasArrow
+              placement="bottom"
+            >
+              <MenuButton
+                as={Button}
+                variant="ghost"
+                size="sm"
+                rightIcon={<ChevronDownIcon />}
+                px={3}
+                color={account ? connectedColor : 'gray.500'}
+                _hover={{ bg: hoverBg }}
+                transition="all 0.2s"
+              >
+                {account ? (
+                  <HStack>
+                    <Box 
+                      w={2} 
+                      h={2} 
+                      borderRadius="full" 
+                      bg={connectedColor}
+                      boxShadow={`0 0 10px ${connectedColor}`}
+                    />
+                    <Text>{formatAddress(account)}</Text>
+                  </HStack>
+                ) : (
+                  'Connect Wallet'
+                )}
+              </MenuButton>
+            </Tooltip>
+            <MenuList
+              bg={menuBg}
+              borderColor={menuBorderColor}
+              shadow="xl"
+              p={0}
+              overflow="hidden"
+              minW="300px"
+              borderRadius="xl"
+            >
+              {account ? (
+                <>
+                  <Box
+                    px={4}
+                    py={4}
+                    bgGradient={`linear(to-b, ${gradientFrom}, ${gradientTo})`}
+                  >
+                    <Text fontSize="sm" color="gray.500" mb={2}>
                       Connected Wallet
                     </Text>
-                    <Text fontSize="xs" color={textColor} mt={1}>
-                      {account}
-                    </Text>
+                    <HStack spacing={3}>
+                      <Box 
+                        w={2} 
+                        h={2} 
+                        borderRadius="full" 
+                        bg={connectedColor}
+                        boxShadow={`0 0 10px ${connectedColor}`}
+                      />
+                      <Text 
+                        fontWeight="semibold" 
+                        fontSize="md"
+                        letterSpacing="wide"
+                      >
+                        {formatAddress(account)}
+                      </Text>
+                    </HStack>
                   </Box>
-                  <Divider my={2} />
-                  <MenuItem
-                    icon={<Icon icon={FiCopy} boxSize={4} />}
-                    onClick={handleCopyAddress}
-                    fontSize="sm"
+                  <VStack align="stretch" py={2}>
+                    <WalletMenuItem
+                      icon={<CopyIcon />}
+                      label="Copy Address"
+                      onClick={handleCopyAddress}
+                      color={menuItemColor}
+                      hoverBg={menuItemHoverBg}
+                    />
+                    <WalletMenuItem
+                      icon={<ExternalLinkIcon />}
+                      label="View on Explorer"
+                      onClick={handleViewOnExplorer}
+                      color={menuItemColor}
+                      hoverBg={menuItemHoverBg}
+                    />
+                    <MenuDivider my={2} />
+                    <WalletMenuItem
+                      icon={<SmallCloseIcon />}
+                      label="Disconnect Wallet"
+                      onClick={handleDisconnect}
+                      color={menuItemColor}
+                      hoverBg={menuItemHoverBg}
+                      isDestructive
+                    />
+                  </VStack>
+                </>
+              ) : (
+                <VStack align="stretch" p={4} spacing={3}>
+                  <Text 
+                    fontSize="sm" 
+                    color="gray.500"
+                    fontWeight="medium"
                   >
-                    Copy Address
-                  </MenuItem>
-                  <MenuItem
-                    icon={<Icon icon={FiExternalLink} boxSize={4} />}
-                    onClick={() => window.open(`https://etherscan.io/address/${account}`, '_blank')}
-                    fontSize="sm"
-                  >
-                    View on Etherscan
-                  </MenuItem>
-                  <Divider my={2} />
-                  <MenuItem
-                    icon={<Icon icon={FiLogOut} boxSize={4} />}
-                    onClick={handleDisconnect}
-                    fontSize="sm"
-                    color="red.500"
-                  >
-                    Disconnect
-                  </MenuItem>
-                </MenuList>
-              </Menu>
-            ) : (
-              <Button
-                size="sm"
-                colorScheme="blue"
-                leftIcon={loading ? <Spinner size="sm" /> : <Icon icon={FiKey} boxSize={4} />}
-                onClick={handleConnect}
-                fontWeight="medium"
-                disabled={loading}
-              >
-                {loading ? 'Connecting...' : 'Connect Wallet'}
-              </Button>
-            )}
-          </Box>
+                    Connect your wallet
+                  </Text>
+                  <Box>
+                    <WalletConnect />
+                  </Box>
+                </VStack>
+              )}
+            </MenuList>
+          </Menu>
         </Flex>
-      </Container>
+      </Flex>
+
+      {isOpen && (
+        <Box pb={4} display={{ base: 'flex', md: 'none' }}>
+          <Stack as="nav" spacing={4}>
+            <NavLink href="/dashboard">Dashboard</NavLink>
+            <NavLink href="/records">Records</NavLink>
+            <NavLink href="/shared">Shared Access</NavLink>
+            <NavLink href="/roles">Role Management</NavLink>
+          </Stack>
+        </Box>
+      )}
     </Box>
   );
 };

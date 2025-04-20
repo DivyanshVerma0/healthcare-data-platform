@@ -14,6 +14,7 @@ import {
   Alert,
   AlertIcon,
   Spinner,
+  useColorModeValue,
 } from '@chakra-ui/react';
 import { useWeb3React } from '@web3-react/core';
 import { ethers } from 'ethers';
@@ -30,6 +31,8 @@ const SharedAccess = () => {
   const [sharedRecords, setSharedRecords] = useState<MedicalRecord[]>([]);
   const [myRecords, setMyRecords] = useState<MedicalRecord[]>([]);
   const toast = useToast();
+  const bgColor = useColorModeValue('white', 'gray.800');
+  const borderColor = useColorModeValue('gray.200', 'gray.700');
 
   const fetchMyRecords = async () => {
     if (!contract || !account) return;
@@ -152,30 +155,34 @@ const SharedAccess = () => {
 
           <TabPanels>
             <TabPanel>
-              <Box bg="white" p={6} borderRadius="lg" shadow="sm">
+              <Box bg={bgColor} p={6} borderRadius="lg" shadow="sm" borderWidth="1px" borderColor={borderColor}>
                 <VStack spacing={4} align="stretch">
                   <Heading size="md">Records You've Shared</Heading>
-                  {myRecords.map(record => (
-                    <Box key={record.recordId}>
-                      <Text fontWeight="bold">
-                        {record.tags?.[0] || `Record ${record.recordId}`}
-                      </Text>
-                      {contract && (
-                        <SharedAccessList 
-                          recordId={record.recordId}
-                          contract={contract}
-                          onAccessRevoked={fetchMyRecords}
-                          isOwner={account?.toLowerCase() === record.owner?.toLowerCase()}
-                        />
-                      )}
-                    </Box>
-                  ))}
+                  {myRecords.length > 0 ? (
+                    myRecords.map(record => (
+                      <Box key={record.recordId} p={4} borderWidth="1px" borderRadius="md" borderColor={borderColor}>
+                        <Text fontWeight="bold" mb={2}>
+                          {record.tags?.[0] || `Record ${record.recordId}`}
+                        </Text>
+                        {contract && (
+                          <SharedAccessList 
+                            recordId={record.recordId}
+                            contract={contract}
+                            onAccessRevoked={fetchMyRecords}
+                            isOwner={account?.toLowerCase() === record.owner?.toLowerCase()}
+                          />
+                        )}
+                      </Box>
+                    ))
+                  ) : (
+                    <Text color="gray.500">You haven't shared any records yet</Text>
+                  )}
                 </VStack>
               </Box>
             </TabPanel>
 
             <TabPanel>
-              <Box bg="white" p={6} borderRadius="lg" shadow="sm">
+              <Box bg={bgColor} p={6} borderRadius="lg" shadow="sm" borderWidth="1px" borderColor={borderColor}>
                 <VStack spacing={4} align="stretch">
                   <Heading size="md">Records Shared With You</Heading>
                   <SharedWithMeRecords 

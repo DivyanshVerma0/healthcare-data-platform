@@ -17,7 +17,7 @@ import {
 } from '@chakra-ui/react';
 import { FiShield, FiShare2, FiDatabase, FiLock, FiCheckCircle, FiTrendingUp, FiUsers, FiSearch } from 'react-icons/fi';
 import { useNavigate } from 'react-router-dom';
-import { Icon } from '../components/Icon';
+import Icon from '../components/Icon';
 
 const FEATURES = [
   {
@@ -137,8 +137,7 @@ const Home = () => {
               >
                 <Icon
                   icon={feature.icon}
-                  w={10}
-                  h={10}
+                  boxSize="10"
                   color={accentColor}
                   mb={4}
                 />
@@ -171,8 +170,8 @@ const Home = () => {
               </Text>
               <List spacing={4}>
                 {BENEFITS.map((benefit, index) => (
-                  <ListItem key={index} display="flex" alignItems="center">
-                    <Icon icon={FiCheckCircle} color={accentColor} mr={2} />
+                  <ListItem key={index} display="flex" alignItems="center" gap={2}>
+                    <Icon icon={FiCheckCircle} boxSize="5" color={accentColor} />
                     <Text color={textColor}>{benefit}</Text>
                   </ListItem>
                 ))}
@@ -186,7 +185,7 @@ const Home = () => {
                 border="1px"
                 borderColor={borderColor}
               >
-                <Icon icon={FiTrendingUp} w={8} h={8} color={accentColor} mb={4} />
+                <Icon icon={FiTrendingUp} boxSize="8" color={accentColor} mb={4} />
                 <Heading size="md" mb={3} color={headingColor}>
                   For Healthcare Providers
                 </Heading>
@@ -203,7 +202,7 @@ const Home = () => {
                 border="1px"
                 borderColor={borderColor}
               >
-                <Icon icon={FiUsers} w={8} h={8} color={accentColor} mb={4} />
+                <Icon icon={FiUsers} boxSize="8" color={accentColor} mb={4} />
                 <Heading size="md" mb={3} color={headingColor}>
                   For Patients
                 </Heading>

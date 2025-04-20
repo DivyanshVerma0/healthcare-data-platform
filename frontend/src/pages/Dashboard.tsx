@@ -11,9 +11,24 @@ import { SharedWithMeRecords } from '../components/SharedWithMeRecords';
 import EmergencyAccess from '../components/EmergencyAccess';
 import SearchFilter from '../components/SearchFilter';
 import { FiUpload, FiFolder, FiShare2, FiUsers, FiLock, FiShield } from 'react-icons/fi';
-import { Icon } from '../components/Icon';
+import Icon from '../components/Icon';
+import { CONTRACT_ADDRESS } from '../utils/contract';
 
-const CONTRACT_ADDRESS = '0x5FbDB2315678afecb367f032d93F642f64180aa3';
+// Define colors directly in the component for now
+const COLORS = {
+  primary: {
+    500: '#0967D2',
+    600: '#0552B5'
+  },
+  secondary: {
+    500: '#2C7A7B',
+    600: '#285E61'
+  },
+  accent: {
+    500: '#6B46C1',
+    600: '#553C9A'
+  }
+};
 
 const CATEGORY_NAMES = [
   'General',
@@ -35,25 +50,6 @@ const ALLOWED_FILE_TYPES = {
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
   'image/jpeg': ['.jpg', '.jpeg'],
   'image/png': ['.png']
-};
-
-// Add professional color scheme constants
-const COLORS = {
-  primary: {
-    50: '#E6F6FF',
-    500: '#0078D4',
-    600: '#0063B1',
-  },
-  secondary: {
-    50: '#F0F9FF',
-    500: '#00B5E2',
-    600: '#00A3CB',
-  },
-  accent: {
-    50: '#F5F7FF',
-    500: '#4C6FFF',
-    600: '#3557FF',
-  }
 };
 
 const Dashboard = () => {
@@ -83,7 +79,7 @@ const Dashboard = () => {
   const inputBorderColor = useColorModeValue('gray.200', 'gray.600');
   const hoverBg = useColorModeValue('gray.100', 'gray.700');
   const cardBg = useColorModeValue('gray.50', 'gray.700');
-  const iconColor = useColorModeValue('gray.400', 'gray.500');
+  const iconColor = useColorModeValue('gray.600', 'gray.400');
 
   const validateFile = (file: File): { isValid: boolean; error?: string } => {
     // Check file size
@@ -464,6 +460,32 @@ const Dashboard = () => {
     }
   }, [active, account]);
 
+  if (!active) {
+    return (
+      <Box bg={bgColor} minH="100vh" py={8}>
+        <Container maxW="container.xl">
+          <Card 
+            p={8} 
+            textAlign="center" 
+            bg={containerBg}
+            borderRadius="xl"
+            boxShadow="lg"
+          >
+            <VStack spacing={6}>
+              <Icon icon={FiLock} boxSize={12} color={COLORS.primary[500]} />
+              <Heading size="lg" color={textColor}>
+                Connect Your Wallet
+              </Heading>
+              <Text fontSize="lg" color={subTextColor}>
+                Please connect your wallet to access your medical records dashboard
+              </Text>
+            </VStack>
+          </Card>
+        </Container>
+      </Box>
+    );
+  }
+
   return (
     <Box bg={bgColor} minH="100vh" py={8}>
       <Container maxW="container.xl">
@@ -499,7 +521,7 @@ const Dashboard = () => {
                 alignItems="center"
                 mt={{ base: 4, md: 0 }}
               >
-                <Icon icon={FiLock} mr={2} />
+                <Icon icon={FiLock} boxSize={4} mr={2} />
                 Wallet Not Connected
               </Badge>
             )}
@@ -598,7 +620,7 @@ const Dashboard = () => {
                       bg: hoverBg
                     }}
                   >
-                    <Icon icon={FiFolder} mr={2} /> My Records
+                    <Icon icon={FiFolder} boxSize={5} mr={2} /> My Records
                   </Tab>
                   <Tab
                     _selected={{ 
@@ -609,7 +631,7 @@ const Dashboard = () => {
                       bg: hoverBg
                     }}
                   >
-                    <Icon icon={FiShare2} mr={2} /> Shared By Me
+                    <Icon icon={FiShare2} boxSize={5} mr={2} /> Shared By Me
                   </Tab>
                   <Tab
                     _selected={{ 
@@ -620,7 +642,7 @@ const Dashboard = () => {
                       bg: hoverBg
                     }}
                   >
-                    <Icon icon={FiUsers} mr={2} /> Shared With Me
+                    <Icon icon={FiUsers} boxSize={5} mr={2} /> Shared With Me
                   </Tab>
                 </TabList>
 

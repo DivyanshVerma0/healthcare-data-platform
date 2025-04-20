@@ -9,7 +9,7 @@ import {
   useColorModeValue,
 } from '@chakra-ui/react';
 import { FiEye, FiDownload, FiShare2 } from 'react-icons/fi';
-import { Icon } from './Icon';
+import Icon from './Icon';
 
 export interface Record {
   id: string;
@@ -78,7 +78,7 @@ export const RecordCard: React.FC<RecordCardProps> = ({
           <HStack spacing={2} mt={2}>
             <Button
               size="sm"
-              leftIcon={<Icon icon={FiEye} />}
+              leftIcon={<Icon icon={FiEye} boxSize={4} />}
               onClick={onView}
               flex={1}
             >
@@ -87,7 +87,7 @@ export const RecordCard: React.FC<RecordCardProps> = ({
             {onDownload && (
               <Button
                 size="sm"
-                leftIcon={<Icon icon={FiDownload} />}
+                leftIcon={<Icon icon={FiDownload} boxSize={4} />}
                 onClick={onDownload}
                 flex={1}
               >
@@ -97,7 +97,7 @@ export const RecordCard: React.FC<RecordCardProps> = ({
             {onShare && (
               <Button
                 size="sm"
-                leftIcon={<Icon icon={FiShare2} />}
+                leftIcon={<Icon icon={FiShare2} boxSize={4} />}
                 onClick={onShare}
                 flex={1}
               >
@@ -109,4 +109,6 @@ export const RecordCard: React.FC<RecordCardProps> = ({
       </VStack>
     </Box>
   );
-}; 
+};
+
+export default RecordCard; 
