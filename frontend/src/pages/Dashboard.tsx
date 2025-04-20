@@ -1,4 +1,4 @@
-import { Box, Heading, Text, SimpleGrid, Card, CardBody, Button, Input, VStack, useToast, Progress, Select, Divider, Tabs, TabList, TabPanels, Tab, TabPanel, HStack, Tag } from '@chakra-ui/react';
+import { Box, Heading, Text, SimpleGrid, Card, CardBody, Button, Input, VStack, useToast, Progress, Select, Divider, Tabs, TabList, TabPanels, Tab, TabPanel, HStack, Tag, TagLabel, TagCloseButton } from '@chakra-ui/react';
 import { useWeb3React } from '@web3-react/core';
 import { useState, useEffect } from 'react';
 import { uploadToIPFS } from '../utils/ipfs';
@@ -12,6 +12,18 @@ import EmergencyAccess from '../components/EmergencyAccess';
 import SearchFilter from '../components/SearchFilter';
 
 const CONTRACT_ADDRESS = '0x5FbDB2315678afecb367f032d93F642f64180aa3';
+
+const CATEGORY_NAMES = [
+  'General',
+  'Lab Report',
+  'Prescription',
+  'Imaging',
+  'Vaccination',
+  'Surgery',
+  'Consultation',
+  'Emergency',
+  'Other'
+];
 
 // File upload constants
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
@@ -35,8 +47,9 @@ const Dashboard = () => {
   const [isSharing, setIsSharing] = useState(false);
   const [sharedWithMeRecords, setSharedWithMeRecords] = useState<IMedicalRecord[]>([]);
   const [category, setCategory] = useState('');
-  const [tags, setTags] = useState<string[]>([]);
-  const [tagInput, setTagInput] = useState('');
+  const [recordName, setRecordName] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('');
   const toast = useToast();
 
   const validateFile = (file: File): { isValid: boolean; error?: string } => {
@@ -86,29 +99,27 @@ const Dashboard = () => {
     setSelectedFile(sanitizedFile);
   };
 
-  const addTag = () => {
-    if (tagInput.trim() !== '') {
-      setTags([...tags, tagInput.trim()]);
-      setTagInput('');
-    }
-  };
-
   const handleUpload = async () => {
-    if (!selectedFile || !library || !account) return;
+    if (!selectedFile || !library || !account || !recordName.trim()) {
+      toast({
+        title: "Error",
+        description: "Please provide both a file and a name for the record",
+        status: "error",
+        duration: 3000,
+      });
+      return;
+    }
 
     setIsUploading(true);
     setUploadProgress('Uploading to IPFS...');
 
     try {
-      // Upload to IPFS
       const ipfsHash = await uploadToIPFS(selectedFile);
       setUploadProgress('Creating blockchain record...');
 
-      // Get signer and contract
       const signer = library.getSigner();
       const contract = new ethers.Contract(CONTRACT_ADDRESS, MedicalRecord.abi, signer);
 
-      // Convert category string to BigNumber or default to BigNumber.from(0)
       let categoryValue;
       try {
         categoryValue = category ? ethers.BigNumber.from(category) : ethers.BigNumber.from(0);
@@ -116,16 +127,13 @@ const Dashboard = () => {
         console.error('Error converting category to BigNumber:', error);
         categoryValue = ethers.BigNumber.from(0);
       }
-      
-      // Make sure tags is an array (even if empty)
-      const tagsArray = Array.isArray(tags) ? tags : [];
 
-      // Call the contract function with all required parameters
+      // Add name as the first element in the tags array
       const tx = await contract.createRecord(
-        ipfsHash,          // IPFS hash
-        true,              // isEncrypted
-        categoryValue,     // category as a BigNumber
-        tagsArray          // tags array
+        ipfsHash,
+        true,
+        categoryValue,
+        [recordName.trim()]  // Use tags array to store the name
       );
 
       setUploadProgress('Waiting for confirmation...');
@@ -138,10 +146,9 @@ const Dashboard = () => {
         duration: 5000,
       });
 
-      // Reset form and fetch updated records
       setSelectedFile(null);
       setCategory('');
-      setTags([]);
+      setRecordName('');
       fetchRecords();
 
     } catch (error) {
@@ -149,7 +156,6 @@ const Dashboard = () => {
       
       let errorMessage = "Upload failed";
       if (error instanceof Error) {
-        // Handle specific error messages
         errorMessage = error.message;
       }
 
@@ -379,58 +385,43 @@ const Dashboard = () => {
     }
   };
 
+  // Simple filtering that won't interfere with core functionality
+  const applyFilters = () => {
+    let result = [...records];
+
+    // Apply category filter
+    if (selectedCategory) {
+      result = result.filter(record => record.category.toString() === selectedCategory);
+    }
+
+    // Apply search filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.trim().toLowerCase();
+      result = result.filter(record => {
+        const name = record.tags?.[0] || '';
+        return name.toLowerCase().includes(query);
+      });
+    }
+
+    setFilteredRecords(result);
+  };
+
+  // Update filters when records change
+  useEffect(() => {
+    setFilteredRecords(records);
+  }, [records]);
+
+  // Update filters when search or category changes
+  useEffect(() => {
+    applyFilters();
+  }, [searchQuery, selectedCategory]);
+
   const handleSearch = (query: string) => {
-    const lowerCaseQuery = query.trim().toLowerCase();
-    if (!lowerCaseQuery) {
-      setFilteredRecords(records);
-      return;
-    }
-  
-    // Log a sample record to see its structure in console
-    if (records.length > 0) {
-      console.log('Sample record structure:', records[0]);
-    }
-  
-    try {
-      const filtered = records.filter((record) => {
-        // First check if record is null/undefined
-        if (!record) return false;
-  
-        // Search in record ID
-        if (record.recordId && record.recordId.toLowerCase().includes(lowerCaseQuery)) {
-          return true;
-        }
-  
-        // Search in IPFS hash
-        if (record.ipfsHash && record.ipfsHash.toLowerCase().includes(lowerCaseQuery)) {
-          return true;
-        }
-  
-        // Search in timestamp if it exists and is a Date
-        if (record.timestamp) {
-          const dateString = new Date(record.timestamp).toLocaleDateString();
-          if (dateString.toLowerCase().includes(lowerCaseQuery)) {
-            return true;
-          }
-        }
-  
-        // If we reach here, record doesn't match search criteria
-        return false;
-      });
-  
-      setFilteredRecords(filtered);
-    } catch (error) {
-      console.error('Search error:', error);
-      // In case of error, just show all records
-      setFilteredRecords(records);
-      
-      toast({
-        title: "Search Error",
-        description: "An error occurred while searching. Showing all records.",
-        status: "error",
-        duration: 3000,
-      });
-    }
+    setSearchQuery(query);
+  };
+
+  const handleCategoryFilter = (category: string) => {
+    setSelectedCategory(category);
   };
 
   useEffect(() => {
@@ -445,7 +436,24 @@ const Dashboard = () => {
       <Heading mb={6}>Your Medical Records Dashboard</Heading>
       {active ? (
         <>
-          <SearchFilter onSearch={handleSearch} />
+          <HStack spacing={4} mb={4}>
+            <Box flex="1">
+              <SearchFilter onSearch={handleSearch} />
+            </Box>
+            <Select
+              placeholder="Filter by category"
+              value={selectedCategory}
+              onChange={(e) => handleCategoryFilter(e.target.value)}
+              maxW="200px"
+            >
+              <option value="">All Categories</option>
+              {CATEGORY_NAMES.map((name: string, index: number) => (
+                <option key={index} value={index.toString()}>
+                  {name}
+                </option>
+              ))}
+            </Select>
+          </HStack>
           <Tabs>
             <TabList mb={4}>
               <Tab>My Records</Tab>
@@ -460,6 +468,11 @@ const Dashboard = () => {
                       <VStack spacing={4}>
                         <Heading size="md">Upload Records</Heading>
                         <Text>Upload your medical records securely</Text>
+                        <Input
+                          placeholder="Enter record name"
+                          value={recordName}
+                          onChange={(e) => setRecordName(e.target.value)}
+                        />
                         <Input
                           type="file"
                           onChange={handleFileSelect}
@@ -481,21 +494,6 @@ const Dashboard = () => {
                           <option value="7">Emergency</option>
                           <option value="8">Other</option>
                         </Select>
-                        <HStack>
-                          <Input
-                            placeholder="Add a tag"
-                            value={tagInput}
-                            onChange={(e) => setTagInput(e.target.value)}
-                          />
-                          <Button onClick={addTag}>Add Tag</Button>
-                        </HStack>
-                        <HStack>
-                          {tags.map((tag, index) => (
-                            <Tag key={index} colorScheme="blue" mr={2}>
-                              {tag}
-                            </Tag>
-                          ))}
-                        </HStack>
                         {isUploading && (
                           <Box w="100%">
                             <Progress size="xs" isIndeterminate />
@@ -540,7 +538,7 @@ const Dashboard = () => {
                         >
                           {records.map((record) => (
                             <option key={record.recordId} value={record.recordId}>
-                              Record {new Date(record.timestamp).toLocaleDateString()}
+                              {record.tags && record.tags.length > 0 ? record.tags[0] : `Record ${record.recordId}`} ({new Date(record.timestamp).toLocaleDateString()})
                             </option>
                           ))}
                         </Select>
@@ -586,7 +584,10 @@ const Dashboard = () => {
                       {records.map((record) => (
                         <Box key={record.recordId} p={4} borderWidth={1} borderRadius="md">
                           <Text fontWeight="bold">
-                            Record {new Date(record.timestamp).toLocaleDateString()}
+                            {record.tags && record.tags.length > 0 ? record.tags[0] : `Record ${record.recordId}`}
+                          </Text>
+                          <Text fontSize="sm" color="gray.600" mt={1}>
+                            Date: {new Date(record.timestamp).toLocaleDateString()}
                           </Text>
                           <Text fontSize="sm" color="gray.600" mt={1}>
                             IPFS Hash: {record.ipfsHash}

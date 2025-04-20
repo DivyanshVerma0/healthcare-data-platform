@@ -4,13 +4,14 @@ import {
   Text,
   Button,
   Box,
+  Link,
   HStack,
   useToast,
   Tag,
   Wrap,
   WrapItem,
 } from '@chakra-ui/react';
-import { RepeatIcon } from '@chakra-ui/icons';
+import { ExternalLinkIcon, RepeatIcon } from '@chakra-ui/icons';
 import { MedicalRecord } from '../types/records';
 import { CategoryLabels } from './CategoryLabels';
 
@@ -21,6 +22,10 @@ interface SharedWithMeRecordsProps {
 
 const SharedWithMeRecords: React.FC<SharedWithMeRecordsProps> = ({ records, onRefresh }) => {
   const toast = useToast();
+
+  const handleView = (ipfsUrl: string) => {
+    window.open(ipfsUrl, '_blank');
+  };
 
   const handleDownload = async (record: MedicalRecord) => {
     try {
@@ -44,54 +49,41 @@ const SharedWithMeRecords: React.FC<SharedWithMeRecordsProps> = ({ records, onRe
             <Box
               key={record.recordId}
               p={4}
-              borderWidth="1px"
-              borderRadius="lg"
-              _hover={{ bg: "gray.50" }}
+              borderWidth={1}
+              borderRadius="md"
             >
-              <VStack align="stretch" spacing={2}>
-                <HStack justify="space-between">
-                  <VStack align="start" spacing={1}>
-                    <Text fontWeight="bold">
-                      {record.title || `Shared Record #${record.recordId}`}
-                    </Text>
-                    <Text fontSize="sm" color="gray.500">
-                      Shared on: {new Date(record.timestamp).toLocaleString()}
-                    </Text>
-                  </VStack>
-                  <CategoryLabels category={record.category} />
-                </HStack>
-
-                {record.description && (
-                  <Text color="gray.600">{record.description}</Text>
-                )}
-
-                {record.tags && record.tags.length > 0 && (
-                  <Wrap spacing={2}>
-                    {record.tags.map((tag, index) => (
-                      <WrapItem key={index}>
-                        <Tag size="sm" colorScheme="blue">
-                          {tag}
-                        </Tag>
-                      </WrapItem>
-                    ))}
-                  </Wrap>
-                )}
-
-                <HStack justify="flex-end" pt={2}>
-                  <Button
-                    size="sm"
-                    colorScheme="blue"
-                    onClick={() => handleDownload(record)}
-                  >
+              <Text fontWeight="bold">
+                {record.tags && record.tags.length > 0 ? record.tags[0] : `Record ${record.recordId}`}
+              </Text>
+              <Text fontSize="sm" color="gray.600" mt={1}>
+                Date: {new Date(record.timestamp).toLocaleDateString()}
+              </Text>
+              <Text fontSize="sm" color="gray.600">
+                IPFS Hash: {record.ipfsHash}
+              </Text>
+              <Text fontSize="sm" color="gray.600">
+                Shared by: {record.owner}
+              </Text>
+              <HStack mt={3} spacing={4}>
+                <Button
+                  size="sm"
+                  colorScheme="blue"
+                  onClick={() => handleView(record.ipfsUrl)}
+                  leftIcon={<ExternalLinkIcon />}
+                >
+                  View
+                </Button>
+                <Link href={record.ipfsUrl} isExternal>
+                  <Button size="sm" colorScheme="green">
                     Download
                   </Button>
-                </HStack>
-              </VStack>
+                </Link>
+              </HStack>
             </Box>
           ))}
         </VStack>
       ) : (
-        <Text color="gray.500">No records have been shared with you</Text>
+        <Text color="gray.500">No shared records found</Text>
       )}
       <Button
         colorScheme="blue"

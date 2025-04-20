@@ -1,45 +1,69 @@
 // filepath: e:\Coding\Hackindia\healthcare-data-platform\frontend\src\components\SearchFilter.tsx
-import React, { useState } from 'react';
-import { Input, Button, HStack, Select, VStack } from '@chakra-ui/react';
-import { Category, CATEGORY_NAMES } from './CategoryLabels';
+import React, { useState, useEffect } from 'react';
+import { Input, InputGroup, InputLeftElement, InputRightElement, IconButton } from '@chakra-ui/react';
+import { SearchIcon, CloseIcon } from '@chakra-ui/icons';
 
 interface SearchFilterProps {
-    onSearch: (query: string, category: Category | null) => void;
+  onSearch: (query: string) => void;
 }
 
-const SearchFilter: React.FC<SearchFilterProps> = ({ onSearch }) => {
-    const [searchQuery, setSearchQuery] = useState('');
-    const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
+const SearchFilter = ({ onSearch }: SearchFilterProps) => {
+  const [nameQuery, setNameQuery] = useState('');
 
-    const handleSearch = () => {
-        onSearch(searchQuery, selectedCategory);
-    };
+  const handleSearch = () => {
+    onSearch(nameQuery.trim());
+  };
 
-    return (
-        <VStack spacing={4} align="stretch">
-            <HStack spacing={4}>
-                <Input
-                    placeholder="Search by tags or provider"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                />
-                <Select
-                    placeholder="Select category"
-                    value={selectedCategory !== null ? selectedCategory : ''}
-                    onChange={(e) => setSelectedCategory(e.target.value ? Number(e.target.value) as Category : null)}
-                >
-                    {Object.entries(CATEGORY_NAMES).map(([value, name]) => (
-                        <option key={value} value={value}>
-                            {name}
-                        </option>
-                    ))}
-                </Select>
-                <Button colorScheme="blue" onClick={handleSearch}>
-                    Search
-                </Button>
-            </HStack>
-        </VStack>
-    );
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleSearch();
+    }
+  };
+
+  const handleClear = () => {
+    setNameQuery('');
+    onSearch('');
+  };
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setNameQuery(e.target.value);
+    if (!e.target.value) {
+      onSearch('');
+    }
+  };
+
+  return (
+    <InputGroup>
+      <InputLeftElement pointerEvents="none">
+        <SearchIcon color="gray.300" />
+      </InputLeftElement>
+      <Input
+        placeholder="Search records by name..."
+        value={nameQuery}
+        onChange={handleChange}
+        onKeyPress={handleKeyPress}
+      />
+      <InputRightElement>
+        {nameQuery ? (
+          <IconButton
+            size="sm"
+            aria-label="Clear search"
+            icon={<CloseIcon />}
+            onClick={handleClear}
+            variant="ghost"
+          />
+        ) : (
+          <IconButton
+            size="sm"
+            aria-label="Search"
+            icon={<SearchIcon />}
+            onClick={handleSearch}
+            variant="ghost"
+          />
+        )}
+      </InputRightElement>
+    </InputGroup>
+  );
 };
 
 export default SearchFilter;
