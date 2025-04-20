@@ -1,4 +1,4 @@
-import { Box, Heading, Text, SimpleGrid, Card, CardBody, Button, Input, VStack, useToast, Progress, Select, Divider, Tabs, TabList, TabPanels, Tab, TabPanel } from '@chakra-ui/react';
+import { Box, Heading, Text, SimpleGrid, Card, CardBody, Button, Input, VStack, useToast, Progress, Select, Divider, Tabs, TabList, TabPanels, Tab, TabPanel, HStack, Tag } from '@chakra-ui/react';
 import { useWeb3React } from '@web3-react/core';
 import { useState, useEffect } from 'react';
 import { uploadToIPFS } from '../utils/ipfs';
@@ -8,8 +8,20 @@ import RecordsList from '../components/RecordsList';
 import { MedicalRecord as IMedicalRecord } from '../types/records';
 import SharedAccessList from '../components/SharedAccessList';
 import SharedWithMeRecords from '../components/SharedWithMeRecords';
+import EmergencyAccess from '../components/EmergencyAccess';
+import SearchFilter from '../components/SearchFilter';
 
 const CONTRACT_ADDRESS = '0x5FbDB2315678afecb367f032d93F642f64180aa3';
+
+// File upload constants
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+const ALLOWED_FILE_TYPES = {
+  'application/pdf': ['.pdf'],
+  'application/msword': ['.doc'],
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
+  'image/jpeg': ['.jpg', '.jpeg'],
+  'image/png': ['.png']
+};
 
 const Dashboard = () => {
   const { active, account, library } = useWeb3React();
@@ -17,68 +29,133 @@ const Dashboard = () => {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState('');
   const [records, setRecords] = useState<IMedicalRecord[]>([]);
+  const [filteredRecords, setFilteredRecords] = useState<IMedicalRecord[]>([]);
   const [shareAddress, setShareAddress] = useState('');
   const [selectedRecordId, setSelectedRecordId] = useState('');
   const [isSharing, setIsSharing] = useState(false);
   const [sharedWithMeRecords, setSharedWithMeRecords] = useState<IMedicalRecord[]>([]);
+  const [category, setCategory] = useState('');
+  const [tags, setTags] = useState<string[]>([]);
+  const [tagInput, setTagInput] = useState('');
   const toast = useToast();
 
+  const validateFile = (file: File): { isValid: boolean; error?: string } => {
+    // Check file size
+    if (file.size > MAX_FILE_SIZE) {
+      return {
+        isValid: false,
+        error: `File size exceeds ${MAX_FILE_SIZE / 1024 / 1024}MB limit`
+      };
+    }
+
+    // Check file type
+    const fileType = Object.entries(ALLOWED_FILE_TYPES).find(([mimeType, extensions]) => 
+      file.type === mimeType || extensions.some(ext => file.name.toLowerCase().endsWith(ext))
+    );
+
+    if (!fileType) {
+      return {
+        isValid: false,
+        error: 'Invalid file type. Allowed types: PDF, DOC, DOCX, JPG, PNG'
+      };
+    }
+
+    return { isValid: true };
+  };
+
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (event.target.files && event.target.files[0]) {
-      setSelectedFile(event.target.files[0]);
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const validation = validateFile(file);
+    if (!validation.isValid) {
+      toast({
+        title: "Invalid File",
+        description: validation.error,
+        status: "error",
+        duration: 3000,
+      });
+      event.target.value = ''; // Reset file input
+      return;
+    }
+
+    // Sanitize filename
+    const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+    const sanitizedFile = new File([file], sanitizedName, { type: file.type });
+    
+    setSelectedFile(sanitizedFile);
+  };
+
+  const addTag = () => {
+    if (tagInput.trim() !== '') {
+      setTags([...tags, tagInput.trim()]);
+      setTagInput('');
     }
   };
 
   const handleUpload = async () => {
-    if (!selectedFile || !library || !account) {
-      toast({
-        title: "Error",
-        description: "Please select a file and connect your wallet",
-        status: "error",
-        duration: 3000,
-      });
-      return;
-    }
+    if (!selectedFile || !library || !account) return;
 
     setIsUploading(true);
-    setUploadProgress('Preparing upload...');
-    
+    setUploadProgress('Uploading to IPFS...');
+
     try {
       // Upload to IPFS
-      setUploadProgress('Uploading to IPFS...');
-      console.log('Starting upload process...');
       const ipfsHash = await uploadToIPFS(selectedFile);
-      console.log('IPFS Hash:', ipfsHash);
-      
-      // Create contract instance
-      setUploadProgress('Creating blockchain transaction...');
+      setUploadProgress('Creating blockchain record...');
+
+      // Get signer and contract
       const signer = library.getSigner();
-      console.log('Got signer:', await signer.getAddress());
       const contract = new ethers.Contract(CONTRACT_ADDRESS, MedicalRecord.abi, signer);
-      console.log('Contract instance created');
+
+      // Convert category string to BigNumber or default to BigNumber.from(0)
+      let categoryValue;
+      try {
+        categoryValue = category ? ethers.BigNumber.from(category) : ethers.BigNumber.from(0);
+      } catch (error) {
+        console.error('Error converting category to BigNumber:', error);
+        categoryValue = ethers.BigNumber.from(0);
+      }
       
-      // Create record on blockchain
-      setUploadProgress('Waiting for transaction approval...');
-      const tx = await contract.createRecord(ipfsHash, true);
-      console.log('Transaction submitted:', tx.hash);
-      
-      setUploadProgress('Waiting for transaction confirmation...');
-      const receipt = await tx.wait();
-      console.log('Transaction confirmed:', receipt);
+      // Make sure tags is an array (even if empty)
+      const tagsArray = Array.isArray(tags) ? tags : [];
+
+      // Call the contract function with all required parameters
+      const tx = await contract.createRecord(
+        ipfsHash,          // IPFS hash
+        true,              // isEncrypted
+        categoryValue,     // category as a BigNumber
+        tagsArray          // tags array
+      );
+
+      setUploadProgress('Waiting for confirmation...');
+      await tx.wait();
 
       toast({
-        title: "Success!",
+        title: "Success",
         description: "Medical record uploaded successfully",
         status: "success",
         duration: 5000,
       });
 
+      // Reset form and fetch updated records
       setSelectedFile(null);
+      setCategory('');
+      setTags([]);
+      fetchRecords();
+
     } catch (error) {
       console.error('Upload error:', error);
+      
+      let errorMessage = "Upload failed";
+      if (error instanceof Error) {
+        // Handle specific error messages
+        errorMessage = error.message;
+      }
+
       toast({
-        title: "Upload failed",
-        description: error instanceof Error ? error.message : "An unknown error occurred",
+        title: "Error",
+        description: errorMessage,
         status: "error",
         duration: 5000,
       });
@@ -101,8 +178,20 @@ const Dashboard = () => {
       
       // Get details for each record and filter out non-existent ones
       const recordsData = await Promise.all(
-        recordIds.map(async (recordId: any) => {
+        recordIds.map(async (recordId: ethers.BigNumber) => {
           try {
+            // Additional validation to ensure recordId is valid
+            if (!recordId || recordId.toString() === 'NaN' || !ethers.BigNumber.isBigNumber(recordId)) {
+              console.log('Invalid record ID format:', recordId);
+              return null;
+            }
+
+            // Ensure recordId is a valid BigNumber
+            if (!recordId || recordId.isZero()) {
+              console.log('Invalid record ID:', recordId?.toString());
+              return null;
+            }
+
             // Check if record exists
             const exists = await contract.recordExists(recordId);
             if (!exists) {
@@ -110,16 +199,22 @@ const Dashboard = () => {
               return null;
             }
 
-            const [ipfsHash, owner, timestamp, isEncrypted] = await contract.getRecordDetails(recordId);
+            const [ipfsHash, owner, timestamp, isEncrypted, category, tags] = await contract.getRecordDetails(recordId);
+            
             return {
               recordId: recordId.toString(),
               ipfsHash,
+              owner,
               timestamp: new Date(timestamp.toNumber() * 1000),
               isActive: true,
-              ipfsUrl: `https://ipfs.io/ipfs/${ipfsHash}`
+              ipfsUrl: `https://ipfs.io/ipfs/${ipfsHash}`,
+              category,
+              tags,
+              title: `Record #${recordId.toString()}`,
+              description: `Medical record with ${tags.length} tags`
             };
           } catch (error) {
-            console.log('Error fetching record details:', recordId.toString(), error);
+            console.error('Error fetching record details:', recordId?.toString(), error);
             return null;
           }
         })
@@ -129,6 +224,7 @@ const Dashboard = () => {
       const validRecords = recordsData.filter((record): record is IMedicalRecord => record !== null);
       console.log('Formatted records:', validRecords);
       setRecords(validRecords);
+      setFilteredRecords(validRecords);
     } catch (error) {
       console.error('Error fetching records:', error);
       toast({
@@ -156,22 +252,26 @@ const Dashboard = () => {
       const signer = library.getSigner();
       const contract = new ethers.Contract(CONTRACT_ADDRESS, MedicalRecord.abi, signer);
       
-      console.log('Sharing record:', {
-        recordId: selectedRecordId,
-        to: shareAddress,
-        from: account
-      });
+      // Validate the record ID before converting to BigNumber
+      if (!selectedRecordId.match(/^\d+$/)) {
+        throw new Error('Invalid record ID format');
+      }
 
       // Convert recordId to BigNumber
       const recordIdBN = ethers.BigNumber.from(selectedRecordId);
       console.log('Record ID as BigNumber:', recordIdBN.toString());
+
+      // Verify record exists before sharing
+      const exists = await contract.recordExists(recordIdBN);
+      if (!exists) {
+        throw new Error('Record does not exist');
+      }
 
       const tx = await contract.grantAccess(recordIdBN, shareAddress, {
         gasLimit: 500000
       });
       
       console.log('Transaction submitted:', tx.hash);
-      
       await tx.wait();
       console.log('Transaction confirmed');
 
@@ -182,32 +282,14 @@ const Dashboard = () => {
         duration: 5000,
       });
 
+      // Reset form
       setShareAddress('');
       setSelectedRecordId('');
-      await fetchRecords(); // Refresh the records list
     } catch (error) {
-      console.error('Detailed sharing error:', error);
-      
-      // Extract the most relevant error message
-      let errorMessage = "Failed to grant access";
-      if (error instanceof Error) {
-        if (error.message.includes("user rejected")) {
-          errorMessage = "Transaction was rejected by user";
-        } else if (error.message.includes("insufficient funds")) {
-          errorMessage = "Insufficient funds for transaction";
-        } else if (error.message.includes("execution reverted")) {
-          // Try to extract the revert reason if available
-          errorMessage = error.message.includes(":") 
-            ? error.message.split(":")[1].trim()
-            : "Transaction reverted by the contract";
-        } else {
-          errorMessage = error.message;
-        }
-      }
-
+      console.error('Share error:', error);
       toast({
         title: "Error",
-        description: errorMessage,
+        description: error instanceof Error ? error.message : "Failed to share record",
         status: "error",
         duration: 5000,
       });
@@ -228,26 +310,59 @@ const Dashboard = () => {
       console.log('Fetched shared record IDs:', sharedRecordIds);
       
       if (!sharedRecordIds || sharedRecordIds.length === 0) {
-        setSharedWithMeRecords([]); // Set empty array instead of showing error
+        setSharedWithMeRecords([]);
         return;
       }
       
       // Get details for each shared record
       const sharedRecordsData = await Promise.all(
-        sharedRecordIds.map(async (recordId: any) => {
-          const [ipfsHash, owner, timestamp, isEncrypted] = await contract.getRecordDetails(recordId);
-          return {
-            recordId: recordId.toString(),
-            ipfsHash,
-            timestamp: new Date(timestamp.toNumber() * 1000),
-            isActive: true,
-            ipfsUrl: `https://ipfs.io/ipfs/${ipfsHash}`
-          };
+        sharedRecordIds.map(async (recordId: ethers.BigNumber) => {
+          try {
+            // Additional validation to ensure recordId is valid
+            if (!recordId || recordId.toString() === 'NaN' || !ethers.BigNumber.isBigNumber(recordId)) {
+              console.log('Invalid shared record ID format:', recordId);
+              return null;
+            }
+
+            // Ensure recordId is valid
+            if (!recordId || recordId.isZero()) {
+              console.log('Invalid shared record ID:', recordId?.toString());
+              return null;
+            }
+
+            // Check if record exists
+            const exists = await contract.recordExists(recordId);
+            if (!exists) {
+              console.log('Shared record does not exist:', recordId.toString());
+              return null;
+            }
+
+            // Get full record details including category and tags
+            const [ipfsHash, owner, timestamp, isEncrypted, category, tags] = await contract.getRecordDetails(recordId);
+            
+            return {
+              recordId: recordId.toString(),
+              ipfsHash,
+              owner,
+              timestamp: new Date(timestamp.toNumber() * 1000),
+              isActive: true,
+              ipfsUrl: `https://ipfs.io/ipfs/${ipfsHash}`,
+              category,
+              tags,
+              title: `Record #${recordId.toString()}`,
+              description: `Medical record with ${tags.length} tags`
+            };
+          } catch (error) {
+            console.error('Error fetching shared record details:', recordId?.toString(), error);
+            return null;
+          }
         })
       );
       
-      console.log('Formatted shared records:', sharedRecordsData);
-      setSharedWithMeRecords(sharedRecordsData);
+      // Filter out null values (non-existent records)
+      const validSharedRecords = sharedRecordsData.filter((record): record is IMedicalRecord => record !== null);
+      console.log('Formatted shared records:', validSharedRecords);
+      setSharedWithMeRecords(validSharedRecords);
     } catch (error) {
       console.error('Error fetching shared records:', error);
       // Only show error toast for actual errors, not for empty records
@@ -259,6 +374,62 @@ const Dashboard = () => {
           duration: 5000,
         });
       }
+      // Set empty array on error to avoid undefined state
+      setSharedWithMeRecords([]);
+    }
+  };
+
+  const handleSearch = (query: string) => {
+    const lowerCaseQuery = query.trim().toLowerCase();
+    if (!lowerCaseQuery) {
+      setFilteredRecords(records);
+      return;
+    }
+  
+    // Log a sample record to see its structure in console
+    if (records.length > 0) {
+      console.log('Sample record structure:', records[0]);
+    }
+  
+    try {
+      const filtered = records.filter((record) => {
+        // First check if record is null/undefined
+        if (!record) return false;
+  
+        // Search in record ID
+        if (record.recordId && record.recordId.toLowerCase().includes(lowerCaseQuery)) {
+          return true;
+        }
+  
+        // Search in IPFS hash
+        if (record.ipfsHash && record.ipfsHash.toLowerCase().includes(lowerCaseQuery)) {
+          return true;
+        }
+  
+        // Search in timestamp if it exists and is a Date
+        if (record.timestamp) {
+          const dateString = new Date(record.timestamp).toLocaleDateString();
+          if (dateString.toLowerCase().includes(lowerCaseQuery)) {
+            return true;
+          }
+        }
+  
+        // If we reach here, record doesn't match search criteria
+        return false;
+      });
+  
+      setFilteredRecords(filtered);
+    } catch (error) {
+      console.error('Search error:', error);
+      // In case of error, just show all records
+      setFilteredRecords(records);
+      
+      toast({
+        title: "Search Error",
+        description: "An error occurred while searching. Showing all records.",
+        status: "error",
+        duration: 3000,
+      });
     }
   };
 
@@ -274,7 +445,7 @@ const Dashboard = () => {
       <Heading mb={6}>Your Medical Records Dashboard</Heading>
       {active ? (
         <>
-          <Text mb={4}>Connected Wallet: {account}</Text>
+          <SearchFilter onSearch={handleSearch} />
           <Tabs>
             <TabList mb={4}>
               <Tab>My Records</Tab>
@@ -295,6 +466,36 @@ const Dashboard = () => {
                           accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
                           disabled={isUploading}
                         />
+                        <Select
+                          placeholder="Select Category"
+                          value={category}
+                          onChange={(e) => setCategory(e.target.value)}
+                        >
+                          <option value="0">General</option>
+                          <option value="1">Lab Report</option>
+                          <option value="2">Prescription</option>
+                          <option value="3">Imaging</option>
+                          <option value="4">Vaccination</option>
+                          <option value="5">Surgery</option>
+                          <option value="6">Consultation</option>
+                          <option value="7">Emergency</option>
+                          <option value="8">Other</option>
+                        </Select>
+                        <HStack>
+                          <Input
+                            placeholder="Add a tag"
+                            value={tagInput}
+                            onChange={(e) => setTagInput(e.target.value)}
+                          />
+                          <Button onClick={addTag}>Add Tag</Button>
+                        </HStack>
+                        <HStack>
+                          {tags.map((tag, index) => (
+                            <Tag key={index} colorScheme="blue" mr={2}>
+                              {tag}
+                            </Tag>
+                          ))}
+                        </HStack>
                         {isUploading && (
                           <Box w="100%">
                             <Progress size="xs" isIndeterminate />
@@ -317,7 +518,7 @@ const Dashboard = () => {
                     <CardBody>
                       <Heading size="md" mb={4}>View Records</Heading>
                       <RecordsList 
-                        records={records}
+                        records={filteredRecords.length > 0 ? filteredRecords : records}
                         onRefresh={fetchRecords}
                       />
                     </CardBody>
@@ -359,6 +560,16 @@ const Dashboard = () => {
                               recordId={selectedRecordId}
                               contract={new ethers.Contract(CONTRACT_ADDRESS, MedicalRecord.abi, library.getSigner())}
                               onAccessRevoked={fetchRecords}
+                              isOwner={account?.toLowerCase() === records.find(r => r.recordId === selectedRecordId)?.owner?.toLowerCase()}
+                            />
+                            
+                            <Divider my={2} />
+                            <Text fontWeight="bold">Emergency Access:</Text>
+                            <EmergencyAccess
+                              recordId={selectedRecordId}
+                              contract={new ethers.Contract(CONTRACT_ADDRESS, MedicalRecord.abi, library.getSigner())}
+                              onAccessChanged={fetchRecords}
+                              isOwner={account?.toLowerCase() === records.find(r => r.recordId === selectedRecordId)?.owner?.toLowerCase()}
                             />
                           </>
                         )}
@@ -389,6 +600,7 @@ const Dashboard = () => {
                               fetchRecords();
                               fetchSharedWithMeRecords();
                             }}
+                            isOwner={account?.toLowerCase() === record.owner?.toLowerCase()}
                           />
                         </Box>
                       ))}

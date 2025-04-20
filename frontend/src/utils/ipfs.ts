@@ -1,5 +1,6 @@
 import { create } from 'ipfs-http-client';
 import { Buffer } from 'buffer';
+import axios from 'axios';
 
 // Connect to local IPFS node with CORS settings
 const ipfs = create({
@@ -45,5 +46,26 @@ export const uploadToIPFS = async (file: File) => {
   } catch (error) {
     console.error('IPFS upload error:', error);
     throw new Error(`Failed to upload to IPFS: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+};
+
+export const downloadFromIPFS = async (ipfsHash: string) => {
+  try {
+    const response = await axios.get<Blob>(`https://ipfs.io/ipfs/${ipfsHash}`, {
+      responseType: 'blob'
+    });
+    
+    // At this point, response.data is guaranteed to be a Blob due to responseType: 'blob'
+    const url = window.URL.createObjectURL(response.data);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `record-${ipfsHash}.pdf`);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+  } catch (error) {
+    console.error('Error downloading from IPFS:', error);
+    throw error;
   }
 };

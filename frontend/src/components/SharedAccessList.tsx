@@ -7,16 +7,22 @@ import {
   Box,
   useToast,
   Spinner,
+  Input,
+  List,
+  ListItem,
+  IconButton,
 } from '@chakra-ui/react';
 import { ethers } from 'ethers';
+import { DeleteIcon } from '@chakra-ui/icons';
 
 interface SharedAccessListProps {
   recordId: string;
   contract: ethers.Contract;
+  isOwner: boolean;
   onAccessRevoked: () => void;
 }
 
-const SharedAccessList: React.FC<SharedAccessListProps> = ({ recordId, contract, onAccessRevoked }) => {
+const SharedAccessList: React.FC<SharedAccessListProps> = ({ recordId, contract, isOwner, onAccessRevoked }) => {
   const [sharedAddresses, setSharedAddresses] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -31,6 +37,14 @@ const SharedAccessList: React.FC<SharedAccessListProps> = ({ recordId, contract,
     try {
       setIsLoading(true);
       setError(null);
+
+      // Validate record ID format
+      if (!recordId.match(/^\d+$/)) {
+        console.error('Invalid record ID format:', recordId);
+        setError('Invalid record ID format');
+        setSharedAddresses([]);
+        return;
+      }
 
       // Convert recordId to BigNumber
       const recordIdBN = ethers.BigNumber.from(recordId);
@@ -66,7 +80,7 @@ const SharedAccessList: React.FC<SharedAccessListProps> = ({ recordId, contract,
         } else if (error.message.includes("Record does not exist")) {
           setSharedAddresses([]);
         } else {
-          setError("Failed to fetch shared addresses");
+          setError(error.message || "Failed to fetch shared addresses");
           console.error('Detailed error:', error);
         }
       }
@@ -84,8 +98,19 @@ const SharedAccessList: React.FC<SharedAccessListProps> = ({ recordId, contract,
 
     setIsLoading(true);
     try {
+      // Validate record ID format
+      if (!recordId.match(/^\d+$/)) {
+        throw new Error('Invalid record ID format');
+      }
+
       const recordIdBN = ethers.BigNumber.from(recordId);
       console.log('Revoking access:', { recordId: recordIdBN.toString(), address });
+      
+      // Verify record exists before revoking
+      const exists = await contract.recordExists(recordIdBN);
+      if (!exists) {
+        throw new Error('Record does not exist');
+      }
       
       const tx = await contract.revokeAccess(recordIdBN, address);
       
