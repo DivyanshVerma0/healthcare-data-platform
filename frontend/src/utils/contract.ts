@@ -19,4 +19,19 @@ export const ROLES = {
   DOCTOR: getRoleHash('DOCTOR_ROLE'),
   RESEARCHER: getRoleHash('RESEARCHER_ROLE'),
   ADMIN: getRoleHash('ADMIN_ROLE'),
-} as const; 
+} as const;
+
+export const verifyRole = async (contract: ethers.Contract, address: string, role: string) => {
+  const roleHash = ROLES[role as keyof typeof ROLES];
+  return await contract.hasRole(roleHash, address);
+};
+
+export const grantRole = async (contract: ethers.Contract, address: string, role: string) => {
+  const roleHash = ROLES[role as keyof typeof ROLES];
+  return await contract.grantRole(roleHash, address);
+};
+
+export const revokeRole = async (contract: ethers.Contract, address: string, role: string) => {
+  const roleHash = ROLES[role as keyof typeof ROLES];
+  return await contract.revokeRole(roleHash, address);
+}; 

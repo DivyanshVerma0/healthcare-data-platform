@@ -19,6 +19,7 @@ import {
   Spinner,
   HStack,
   useColorModeValue,
+  Input,
 } from '@chakra-ui/react';
 import { useWeb3React } from '@web3-react/core';
 import { useRole } from '../contexts/RoleContext';
@@ -45,9 +46,37 @@ const AdminDashboard = () => {
   const { account, library } = useWeb3React();
   const [pendingRequests, setPendingRequests] = useState<RoleRequest[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedRecord, setSelectedRecord] = useState('');
+  const [targetAddress, setTargetAddress] = useState('');
   const toast = useToast();
   const bgColor = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.200', 'gray.700');
+
+  // Add role verification effect
+  useEffect(() => {
+    const verifyAdminRole = async () => {
+      if (!library || !account) return;
+      
+      try {
+        const contract = getContract(library.getSigner());
+        const isAdmin = await contract.hasRole(ROLES.ADMIN, account);
+        
+        if (!isAdmin) {
+          toast({
+            title: "Access Denied",
+            description: "You do not have admin privileges",
+            status: "error",
+            duration: 5000,
+            isClosable: true,
+          });
+        }
+      } catch (error) {
+        console.error('Error verifying admin role:', error);
+      }
+    };
+
+    verifyAdminRole();
+  }, [library, account]);
 
   const fetchPendingRequests = async () => {
     if (!library || !account) return;
@@ -142,19 +171,54 @@ const AdminDashboard = () => {
     return roleMap[roleHash] || 'Unknown Role';
   };
 
+  const handleAdminManageRecord = async (recordId: string, address: string, shouldGrantAccess: boolean) => {
+    if (!library || !account) return;
+
+    try {
+      const contract = getContract(library.getSigner());
+      const tx = await contract.adminManageRecord(recordId, address, shouldGrantAccess);
+      
+      toast({
+        title: 'Processing',
+        description: 'Please wait while the transaction is being processed',
+        status: 'info',
+        duration: 5000,
+        isClosable: true,
+      });
+
+      await tx.wait();
+      
+      toast({
+        title: 'Success',
+        description: `Record access ${shouldGrantAccess ? 'granted' : 'revoked'} successfully`,
+        status: 'success',
+        duration: 5000,
+        isClosable: true,
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to manage record access',
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      });
+    }
+  };
+
   useEffect(() => {
     if (role === 'ADMIN') {
       fetchPendingRequests();
     }
   }, [role]);
 
-  // Only render for admin users
+  // Update the role check condition
   if (role !== 'ADMIN') {
     return (
       <Container maxW="container.xl" py={8}>
         <Alert status="error">
           <AlertIcon />
-          You do not have permission to access this page.
+          You do not have permission to access this page. Please contact an administrator if you believe this is an error.
         </Alert>
       </Container>
     );
@@ -166,7 +230,7 @@ const AdminDashboard = () => {
         <VStack spacing={8} align="stretch">
           <Box>
             <Heading size="lg" mb={2}>Admin Dashboard</Heading>
-            <Text color="gray.600">Manage role change requests and user permissions</Text>
+            <Text color="gray.600">Manage role change requests and record permissions</Text>
           </Box>
 
           <Box bg={bgColor} borderRadius="lg" borderWidth="1px" borderColor={borderColor} overflow="hidden">
@@ -231,6 +295,37 @@ const AdminDashboard = () => {
                 </Table>
               )}
             </Box>
+          </Box>
+
+          {/* New Record Management Section */}
+          <Box bg={bgColor} borderRadius="lg" borderWidth="1px" borderColor={borderColor} p={6}>
+            <Heading size="md" mb={4}>Record Management</Heading>
+            <VStack spacing={4}>
+              <Input
+                placeholder="Record ID"
+                value={selectedRecord}
+                onChange={(e) => setSelectedRecord(e.target.value)}
+              />
+              <Input
+                placeholder="Target Address"
+                value={targetAddress}
+                onChange={(e) => setTargetAddress(e.target.value)}
+              />
+              <HStack spacing={4}>
+                <Button
+                  colorScheme="green"
+                  onClick={() => handleAdminManageRecord(selectedRecord, targetAddress, true)}
+                >
+                  Grant Access
+                </Button>
+                <Button
+                  colorScheme="red"
+                  onClick={() => handleAdminManageRecord(selectedRecord, targetAddress, false)}
+                >
+                  Revoke Access
+                </Button>
+              </HStack>
+            </VStack>
           </Box>
         </VStack>
       </Container>

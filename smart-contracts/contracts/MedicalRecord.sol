@@ -168,8 +168,7 @@ contract MedicalRecord is ERC721, Ownable, ReentrancyGuard, AccessControl {
         Category category,
         string[] memory tags
     ) public {
-        require(hasRole(PATIENT_ROLE, msg.sender) || hasRole(DOCTOR_ROLE, msg.sender), 
-            "Only patients and doctors can create records");
+        // Remove role check to allow everyone to upload
         require(bytes(ipfsHash).length > 0, "Invalid IPFS hash");
         
         _tokenIds.increment();
@@ -474,5 +473,37 @@ contract MedicalRecord is ERC721, Ownable, ReentrancyGuard, AccessControl {
     ) {
         RoleChangeRequest storage request = roleChangeRequests[user];
         return (request.requestedRole, request.timestamp, request.isPending);
+    }
+
+    // Add a function to allow admin to manage any record
+    function adminManageRecord(
+        uint256 recordId,
+        address targetAddress,
+        bool shouldGrantAccess
+    ) public onlyAdmin {
+        require(recordExists(recordId), "Record does not exist");
+        
+        Record storage record = records[recordId];
+        
+        if (shouldGrantAccess) {
+            record.hasAccess[targetAddress] = true;
+            record.sharedWith.push(targetAddress);
+            sharedAccess[recordId][targetAddress] = true;
+            sharedWithMe[targetAddress].push(recordId);
+            recordSharedAddresses[recordId].push(targetAddress);
+            emit AccessGranted(recordId, targetAddress);
+        } else {
+            record.hasAccess[targetAddress] = false;
+            // Remove from sharedWith array
+            for (uint i = 0; i < record.sharedWith.length; i++) {
+                if (record.sharedWith[i] == targetAddress) {
+                    record.sharedWith[i] = record.sharedWith[record.sharedWith.length - 1];
+                    record.sharedWith.pop();
+                    break;
+                }
+            }
+            sharedAccess[recordId][targetAddress] = false;
+            emit AccessRevoked(recordId, targetAddress);
+        }
     }
 }

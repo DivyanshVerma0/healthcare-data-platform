@@ -13,6 +13,7 @@ import { useWeb3React } from '@web3-react/core';
 import { injected } from '../utils/web3';
 import { FiKey } from 'react-icons/fi';
 import Icon from './Icon';
+import { connectWallet } from '../services/api';
 
 const WalletConnect = () => {
   const { active, account, activate, deactivate } = useWeb3React();
@@ -29,6 +30,11 @@ const WalletConnect = () => {
         try {
           setLoading(true);
           await activate(injected);
+          
+          // Connect wallet to backend if account is available
+          if (account) {
+            await connectWallet(account);
+          }
         } catch (error) {
           console.error('Error on page load:', error);
         } finally {
@@ -37,7 +43,7 @@ const WalletConnect = () => {
       }
     };
     connectWalletOnPageLoad();
-  }, [activate]);
+  }, [activate, account]);
 
   const connect = async () => {
     if (!window.ethereum) {
@@ -55,6 +61,12 @@ const WalletConnect = () => {
     try {
       await activate(injected);
       localStorage.setItem('previouslyConnected', 'true');
+      
+      // Connect wallet to backend
+      if (account) {
+        await connectWallet(account);
+      }
+      
       toast({
         title: 'Wallet Connected',
         description: 'Successfully connected to your wallet',

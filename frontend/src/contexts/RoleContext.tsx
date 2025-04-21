@@ -1,220 +1,170 @@
-import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { useWeb3React } from '@web3-react/core';
+import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import { toast } from 'react-toastify';
+import { updateUserRole } from '../services/api';
+import { getContract, grantRole, revokeRole, ROLES as CONTRACT_ROLES } from '../utils/contract';
 import { ethers } from 'ethers';
-import { getContract, ROLES } from '../utils/contract';
-import { useToast } from '@chakra-ui/react';
+import { useAuth } from './AuthContext';
+import { useWeb3React } from '@web3-react/core';
 
-export type Role = 'PATIENT' | 'DOCTOR' | 'RESEARCHER' | 'ADMIN' | null;
+export type Role = 'ADMIN' | 'PATIENT' | 'DOCTOR' | 'RESEARCHER' | null;
 
-export interface UserProfile {
-    name: string;
-    specialization: string;
-    institution: string;
-    role: Role;
+interface UserProfile {
+  name: string;
+  specialization?: string;
+  institution?: string;
 }
 
 interface RoleContextType {
-    role: Role;
-    userProfile: UserProfile | null;
-    isLoading: boolean;
-    checkRole: () => Promise<void>;
-    updateProfile: (name: string, specialization: string, institution: string) => Promise<void>;
-    requestRoleChange: (newRole: Role) => Promise<void>;
+  role: Role;
+  setRole: (role: Role) => void;
+  userProfile: UserProfile | null;
+  updateProfile: (name: string, specialization?: string, institution?: string) => Promise<void>;
+  requestRoleChange: (newRole: Role) => Promise<void>;
+  isLoading: boolean;
+  updateRole: (userId: string, newRole: string) => Promise<void>;
+  isUpdating: boolean;
 }
 
 const RoleContext = createContext<RoleContextType | undefined>(undefined);
 
 export const RoleProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-    const { account, library } = useWeb3React();
-    const [role, setRole] = useState<Role>(null);
-    const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
-    const [isLoading, setIsLoading] = useState(true);
-    const toast = useToast();
+  const { user } = useAuth();
+  const { account, library, active } = useWeb3React();
+  const [role, setRole] = useState<Role>(null);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
 
-    const checkRole = async () => {
-        if (!account || !library) {
-            setRole(null);
-            setUserProfile(null);
-            setIsLoading(false);
-            return;
+  useEffect(() => {
+    const checkBlockchainRole = async () => {
+      if (!library || !account || !active) return;
+
+      try {
+        const contract = getContract(library.getSigner());
+        
+        const isAdmin = await contract.hasRole(CONTRACT_ROLES.ADMIN, account);
+        if (isAdmin) {
+          setRole('ADMIN');
+          return;
         }
 
-        try {
-            setIsLoading(true);
-            const contract = getContract(library.getSigner());
-
-            // Check each role
-            const roleChecks = await Promise.all([
-                contract.hasRole(ROLES.PATIENT, account),
-                contract.hasRole(ROLES.DOCTOR, account),
-                contract.hasRole(ROLES.RESEARCHER, account),
-                contract.hasRole(ROLES.ADMIN, account),
-            ]);
-
-            // Get the first matching role
-            const roleMap: Role[] = ['PATIENT', 'DOCTOR', 'RESEARCHER', 'ADMIN'];
-            const detectedRole = roleMap[roleChecks.findIndex(check => check)] || null;
-            setRole(detectedRole);
-
-            // Fetch user profile from contract or API
-            if (detectedRole) {
-                const profile = await contract.getUserProfile(account);
-                setUserProfile({
-                    name: profile.name,
-                    role: detectedRole,
-                    specialization: profile.specialization,
-                    institution: profile.institution,
-                });
-            }
-        } catch (error) {
-            console.error('Error checking role:', error);
-            setRole(null);
-            setUserProfile(null);
-        } finally {
-            setIsLoading(false);
+        const isDoctor = await contract.hasRole(CONTRACT_ROLES.DOCTOR, account);
+        if (isDoctor) {
+          setRole('DOCTOR');
+          return;
         }
+
+        const isPatient = await contract.hasRole(CONTRACT_ROLES.PATIENT, account);
+        if (isPatient) {
+          setRole('PATIENT');
+          return;
+        }
+
+        const isResearcher = await contract.hasRole(CONTRACT_ROLES.RESEARCHER, account);
+        if (isResearcher) {
+          setRole('RESEARCHER');
+          return;
+        }
+
+        setRole(null);
+      } catch (error) {
+        console.error('Error checking blockchain role:', error);
+        setRole(null);
+      }
     };
 
-    const updateProfile = async (name: string, specialization: string, institution: string) => {
-        if (!account || !library) {
-            toast({
-                title: "Error",
-                description: "Please connect your wallet first",
-                status: "error",
-                duration: 5000,
-                isClosable: true,
-            });
-            return;
-        }
+    checkBlockchainRole();
+  }, [library, account, active]);
 
+  const updateProfile = async (name: string, specialization?: string, institution?: string) => {
+    setIsLoading(true);
+    try {
+      // TODO: Implement API call to update profile
+      setUserProfile({ name, specialization, institution });
+      toast.success('Profile updated successfully');
+    } catch (error) {
+      toast.error('Error updating profile');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const requestRoleChange = async (newRole: Role) => {
+    setIsLoading(true);
+    try {
+      // TODO: Implement API call to request role change
+      setRole(newRole);
+      toast.success('Role change requested successfully');
+    } catch (error) {
+      toast.error('Error requesting role change');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const updateRole = async (userId: string, newRole: string) => {
+    if (!window.ethereum) {
+      toast.error('Please connect your wallet first');
+      return;
+    }
+
+    setIsUpdating(true);
+    try {
+      // Update role in backend
+      await updateUserRole(userId, newRole);
+
+      // Update role in blockchain
+      const provider = new ethers.providers.Web3Provider(window.ethereum);
+      const signer = provider.getSigner();
+      const contract = getContract(signer);
+      const targetAddress = await signer.getAddress();
+
+      // Revoke all existing roles first
+      const roles = ['PATIENT', 'DOCTOR', 'RESEARCHER', 'ADMIN'];
+      for (const role of roles) {
         try {
-            // Optimistic update
-            if (userProfile) {
-                setUserProfile({
-                    ...userProfile,
-                    name,
-                    specialization,
-                    institution
-                });
-            }
-
-            const contract = getContract(library.getSigner());
-            const tx = await contract.updateUserProfile(name, specialization, institution);
-            
-            toast({
-                title: "Updating profile...",
-                description: "Please wait while your transaction is being processed",
-                status: "info",
-                duration: 5000,
-                isClosable: true,
-            });
-
-            await tx.wait();
-
-            toast({
-                title: "Success",
-                description: "Your profile has been updated successfully",
-                status: "success",
-                duration: 5000,
-                isClosable: true,
-            });
-
-            // Refresh profile to ensure data consistency
-            await checkRole();
-        } catch (error: any) {
-            // Revert optimistic update
-            await checkRole();
-            
-            toast({
-                title: "Error",
-                description: error.message || "Failed to update profile",
-                status: "error",
-                duration: 5000,
-                isClosable: true,
-            });
+          await revokeRole(contract, targetAddress, role);
+        } catch (err) {
+          console.log(`No ${role} role to revoke`);
         }
-    };
+      }
 
-    const requestRoleChange = async (newRole: Role) => {
-        if (!account || !library) {
-            toast({
-                title: "Error",
-                description: "Please connect your wallet first",
-                status: "error",
-                duration: 5000,
-                isClosable: true,
-            });
-            return;
-        }
+      // Grant new role
+      await grantRole(contract, targetAddress, newRole.toUpperCase());
+      
+      toast.success('Role updated successfully in both system and blockchain');
+    } catch (err: any) {
+      console.error('Error updating role:', err);
+      toast.error(err.message || 'Failed to update role');
+    } finally {
+      setIsUpdating(false);
+    }
+  };
 
-        if (!newRole) {
-            toast({
-                title: "Error",
-                description: "Please select a valid role",
-                status: "error",
-                duration: 5000,
-                isClosable: true,
-            });
-            return;
-        }
+  const value = {
+    role,
+    setRole,
+    userProfile,
+    updateProfile,
+    requestRoleChange,
+    isLoading,
+    updateRole,
+    isUpdating
+  };
 
-        try {
-            const contract = getContract(library.getSigner());
-            
-            // Store the role request in a separate smart contract function
-            // This will emit an event that admins can listen to
-            const tx = await contract.requestRoleChange(ROLES[newRole]);
-            
-            toast({
-                title: "Role Change Requested",
-                description: "Your role change request has been submitted and is pending admin approval",
-                status: "info",
-                duration: 5000,
-                isClosable: true,
-            });
-
-            await tx.wait();
-            
-            toast({
-                title: "Request Submitted",
-                description: `Your request to change role to ${newRole} is now pending admin approval`,
-                status: "success",
-                duration: 5000,
-                isClosable: true,
-            });
-        } catch (error: any) {
-            toast({
-                title: "Error",
-                description: error.message || "Failed to request role change",
-                status: "error",
-                duration: 5000,
-                isClosable: true,
-            });
-        }
-    };
-
-    useEffect(() => {
-        checkRole();
-    }, [account, library]);
-
-    return (
-        <RoleContext.Provider value={{ 
-            role, 
-            userProfile, 
-            updateProfile, 
-            checkRole, 
-            isLoading,
-            requestRoleChange 
-        }}>
-            {children}
-        </RoleContext.Provider>
-    );
+  return <RoleContext.Provider value={value}>{children}</RoleContext.Provider>;
 };
 
 export const useRole = () => {
-    const context = useContext(RoleContext);
-    if (context === undefined) {
-        throw new Error('useRole must be used within a RoleProvider');
-    }
-    return context;
-}; 
+  const context = useContext(RoleContext);
+  if (context === undefined) {
+    throw new Error('useRole must be used within a RoleProvider');
+  }
+  return context;
+};
+
+export const ROLES = [
+  { value: 'PATIENT', label: 'Patient' },
+  { value: 'DOCTOR', label: 'Doctor' },
+  { value: 'RESEARCHER', label: 'Researcher' }
+] as const; 

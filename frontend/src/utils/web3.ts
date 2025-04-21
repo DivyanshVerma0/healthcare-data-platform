@@ -8,7 +8,7 @@ declare global {
 }
 
 export const injected = new InjectedConnector({
-    supportedChainIds: [1337] // Hardhat local network
+    supportedChainIds: [1, 5, 11155111, 1337, 80001] // Mainnet, Goerli, Sepolia, Local, Mumbai
 });
 
 export const getLibrary = (provider: any) => {
@@ -17,4 +17,12 @@ export const getLibrary = (provider: any) => {
 
 export const isMetaMaskInstalled = () => {
     return typeof window.ethereum !== 'undefined';
+};
+
+export const NETWORK_NAMES: { [chainId: number]: string } = {
+    1: 'Ethereum Mainnet',
+    5: 'Goerli Testnet',
+    11155111: 'Sepolia Testnet',
+    1337: 'Local Network',
+    80001: 'Mumbai Testnet'
 };

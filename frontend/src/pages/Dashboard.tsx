@@ -1,6 +1,34 @@
-import { Box, Heading, Text, SimpleGrid, Card, CardBody, Button, Input, VStack, useToast, Progress, Select, Divider, Tabs, TabList, TabPanels, Tab, TabPanel, HStack, Container, useColorModeValue, Badge, Flex, chakra, Stat, StatLabel, StatNumber, StatHelpText } from '@chakra-ui/react';
+import {
+  Box,
+  Container,
+  VStack,
+  Heading,
+  Text,
+  SimpleGrid,
+  Card,
+  CardBody,
+  Button,
+  Input,
+  useToast,
+  Progress,
+  Select,
+  Divider,
+  Tabs,
+  TabList,
+  TabPanels,
+  Tab,
+  TabPanel,
+  HStack,
+  useColorModeValue,
+  Badge,
+  Flex,
+  chakra,
+  Stat,
+  StatLabel,
+  StatNumber,
+  StatHelpText,
+} from '@chakra-ui/react';
 import { useWeb3React } from '@web3-react/core';
-import { useState, useEffect } from 'react';
 import { uploadToIPFS } from '../utils/ipfs';
 import { ethers } from 'ethers';
 import MedicalRecord from '../contracts/MedicalRecord.json';
@@ -12,8 +40,9 @@ import EmergencyAccess from '../components/EmergencyAccess';
 import SearchFilter from '../components/SearchFilter';
 import { FiUpload, FiFolder, FiShare2, FiUsers, FiLock, FiShield } from 'react-icons/fi';
 import Icon from '../components/Icon';
-import { CONTRACT_ADDRESS } from '../utils/contract';
+import { CONTRACT_ADDRESS, ROLES } from '../utils/contract';
 import { useRole } from '../contexts/RoleContext';
+import React, { useState, useEffect } from 'react';
 
 // Define colors directly in the component for now
 const COLORS = {
@@ -128,6 +157,39 @@ const Dashboard = () => {
     const sanitizedFile = new File([file], sanitizedName, { type: file.type });
     
     setSelectedFile(sanitizedFile);
+  };
+
+  const requestRole = async (roleToRequest: string) => {
+    if (!library || !account) return;
+
+    try {
+      const signer = library.getSigner();
+      const contract = new ethers.Contract(CONTRACT_ADDRESS, MedicalRecord.abi, signer);
+      
+      // Get the role hash
+      const roleHash = roleToRequest === 'PATIENT' 
+        ? await contract.PATIENT_ROLE()
+        : await contract.DOCTOR_ROLE();
+
+      // Request the role
+      const tx = await contract.requestRoleChange(roleHash);
+      await tx.wait();
+
+      toast({
+        title: "Role Requested",
+        description: "Your role request has been submitted. Please wait for an admin to approve it.",
+        status: "info",
+        duration: 5000,
+      });
+    } catch (error) {
+      console.error('Error requesting role:', error);
+      toast({
+        title: "Error",
+        description: "Failed to request role. Please try again.",
+        status: "error",
+        duration: 5000,
+      });
+    }
   };
 
   const handleUpload = async () => {
@@ -284,25 +346,75 @@ const Dashboard = () => {
       return;
     }
 
+    // Validate Ethereum address format
+    if (!ethers.utils.isAddress(shareAddress)) {
+      toast({
+        title: "Error",
+        description: "Invalid Ethereum address format",
+        status: "error",
+        duration: 3000,
+      });
+      return;
+    }
+
+    // Prevent sharing with own address
+    if (shareAddress.toLowerCase() === account.toLowerCase()) {
+      toast({
+        title: "Error",
+        description: "Cannot share record with yourself",
+        status: "error",
+        duration: 3000,
+      });
+      return;
+    }
+
     setIsSharing(true);
     try {
       const signer = library.getSigner();
       const contract = new ethers.Contract(CONTRACT_ADDRESS, MedicalRecord.abi, signer);
       
-      // Validate the record ID before converting to BigNumber
+      // Validate the record ID format
       if (!selectedRecordId.match(/^\d+$/)) {
         throw new Error('Invalid record ID format');
       }
 
       // Convert recordId to BigNumber
       const recordIdBN = ethers.BigNumber.from(selectedRecordId);
-      console.log('Record ID as BigNumber:', recordIdBN.toString());
-
-      // Verify record exists before sharing
+      
+      // Verify record exists and ownership
       const exists = await contract.recordExists(recordIdBN);
       if (!exists) {
         throw new Error('Record does not exist');
       }
+
+      const owner = await contract.ownerOf(recordIdBN);
+      if (owner.toLowerCase() !== account.toLowerCase()) {
+        throw new Error('You are not the owner of this record');
+      }
+
+      // Check if recipient already has access
+      const hasAccess = await contract.hasAccess(recordIdBN, shareAddress);
+      if (hasAccess) {
+        throw new Error('Recipient already has access to this record');
+      }
+
+      // Verify recipient has a valid role
+      const hasPatientRole = await contract.hasRole(ROLES.PATIENT, shareAddress);
+      const hasDoctorRole = await contract.hasRole(ROLES.DOCTOR, shareAddress);
+      const hasResearcherRole = await contract.hasRole(ROLES.RESEARCHER, shareAddress);
+
+      if (!hasPatientRole && !hasDoctorRole && !hasResearcherRole) {
+        throw new Error('Recipient must have a valid role (Patient, Doctor, or Researcher)');
+      }
+
+      // Show pending transaction toast
+      const pendingToast = toast({
+        title: "Sharing Record",
+        description: "Please wait while the transaction is being processed...",
+        status: "info",
+        duration: null,
+        isClosable: false,
+      });
 
       const tx = await contract.grantAccess(recordIdBN, shareAddress, {
         gasLimit: 500000
@@ -311,6 +423,9 @@ const Dashboard = () => {
       console.log('Transaction submitted:', tx.hash);
       await tx.wait();
       console.log('Transaction confirmed');
+
+      // Close pending toast
+      toast.close(pendingToast);
 
       toast({
         title: "Success",
@@ -324,9 +439,22 @@ const Dashboard = () => {
       setSelectedRecordId('');
     } catch (error) {
       console.error('Share error:', error);
+      
+      // Extract meaningful error message
+      let errorMessage = "Failed to share record";
+      if (error instanceof Error) {
+        // Check for specific error messages from the contract
+        if (error.message.includes("execution reverted")) {
+          const revertMessage = error.message.match(/reason: ([^"]+)/)?.[1] || errorMessage;
+          errorMessage = revertMessage;
+        } else {
+          errorMessage = error.message;
+        }
+      }
+      
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Failed to share record",
+        description: errorMessage,
         status: "error",
         duration: 5000,
       });
